@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lua Turtle — Learn to Code with Turtle Graphics</title>
+<meta name="description" content="Write Lua code and watch a turtle draw. A free, browser-based tool for learning programming through turtle graphics.">
+
+<!-- Favicon: inline SVG turtle arrow -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><polygon points='24,16 10,24 10,8' fill='%234ec9b0'/></svg>">
+
+<!-- CodeMirror -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/tomorrow-night-eighties.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/lua/lua.min.js"></script>
+
+<!-- Wasmoon -->
+<script src="https://unpkg.com/wasmoon@1.16.0/dist/index.js"></script>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #1a1a1a;
+    --surface: #232323;
+    --border: #333;
+    --text: #d4d4d4;
+    --text-muted: #808080;
+    --accent: #4ec9b0;
+    --accent-dim: #2a7a68;
+    --error: #f44747;
+    --canvas-bg: #121212;
+  }
+
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  #app {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  header h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.5px;
+  }
+
+  .header-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  button {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 6px 14px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  button:hover {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
+  button.primary {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  button.primary:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+
+  #main {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    overflow: hidden;
+  }
+
+  #editor-panel {
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .CodeMirror {
+    flex: 1;
+    font-family: 'IBM Plex Mono', monospace !important;
+    font-size: 14px;
+    line-height: 1.6;
+    height: auto !important;
+  }
+
+  #status-bar {
+    padding: 6px 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    min-height: 28px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  #status-bar.error {
+    color: var(--error);
+  }
+
+  #canvas-panel {
+    position: relative;
+    background: var(--canvas-bg);
+    overflow: hidden;
+  }
+
+  #turtle-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Mobile: stacked vertically */
+  @media (max-width: 768px) {
+    #main {
+      grid-template-columns: 1fr;
+      grid-template-rows: 1fr 1fr;
+    }
+
+    #editor-panel {
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .CodeMirror {
+      font-size: 13px;
+    }
+
+    button {
+      padding: 8px 16px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <header>
+    <h1>LUA TURTLE</h1>
+    <div class="header-controls">
+      <button id="btn-stop">Stop</button>
+      <button id="btn-run" class="primary">Run &#9654;</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="editor-panel">
+      <textarea id="editor-textarea"></textarea>
+      <div id="status-bar">Loading...</div>
+    </div>
+    <div id="canvas-panel">
+      <canvas id="turtle-canvas"></canvas>
+    </div>
+  </div>
+</div>
+
+<script>
+(async function main() {
+
+  // ---- CodeMirror setup ----
+
+  const textarea = document.getElementById('editor-textarea');
+  textarea.value = [
+    '-- Welcome to Lua Turtle!',
+    '-- Write code on the left, click Run to see it draw.',
+    '-- Keyboard shortcut: Ctrl+Enter (or Cmd+Enter on Mac)',
+    '',
+    '-- Try completing the square:',
+    '',
+    'forward(100)',
+    'right(90)',
+    'forward(100)',
+    '',
+    '-- More commands:',
+    '-- back(n)  left(n)  penup()  pendown()',
+    '-- pencolor(r, g, b)  pensize(n)  speed(n)',
+    '-- bgcolor(r, g, b)  clear()  reset()',
+  ].join('\n');
+
+  const editor = CodeMirror.fromTextArea(textarea, {
+    mode: 'lua',
+    theme: 'tomorrow-night-eighties',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    lineWrapping: false,
+  });
+
+  const statusBar = document.getElementById('status-bar');
+
+  function setStatus(msg, isError) {
+    statusBar.textContent = msg;
+    statusBar.className = isError ? 'error' : '';
+  }
+
+  // ---- Canvas setup ----
+
+  const canvas = document.getElementById('turtle-canvas');
+  const ctx = canvas.getContext('2d');
+
+  let commitCanvas = null;
+  let commitCtx = null;
+
+  function resizeCanvas() {
+    const panel = document.getElementById('canvas-panel');
+    const w = panel.clientWidth;
+    const h = panel.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    commitCanvas = document.createElement('canvas');
+    commitCanvas.width = w * dpr;
+    commitCanvas.height = h * dpr;
+    commitCtx = commitCanvas.getContext('2d');
+    commitCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    needsFullRedraw = true;
+  }
+
+  let needsFullRedraw = true;
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
+
+  // ---- Coordinate transforms ----
+
+  function screenX(tx) {
+    return (canvas.width / (window.devicePixelRatio || 1)) / 2 + tx;
+  }
+
+  function screenY(ty) {
+    return (canvas.height / (window.devicePixelRatio || 1)) / 2 - ty;
+  }
+
+  // ---- Renderer ----
+
+  function colorToCSS(r, g, b, a) {
+    return 'rgba(' +
+      Math.round(r * 255) + ',' +
+      Math.round(g * 255) + ',' +
+      Math.round(b * 255) + ',' +
+      a + ')';
+  }
+
+  let renderedSegmentCount = 0;
+
+  function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
+    commitCtx.beginPath();
+    commitCtx.moveTo(screenX(fromX), screenY(fromY));
+    commitCtx.lineTo(screenX(toX), screenY(toY));
+    commitCtx.strokeStyle = colorToCSS(r, g, b, a);
+    commitCtx.lineWidth = width;
+    commitCtx.lineCap = 'round';
+    commitCtx.stroke();
+  }
+
+  function fullRedrawCommitted(coreGetSegCount, coreGetSeg) {
+    const w = commitCanvas.width / (window.devicePixelRatio || 1);
+    const h = commitCanvas.height / (window.devicePixelRatio || 1);
+    commitCtx.clearRect(0, 0, w, h);
+    renderedSegmentCount = 0;
+
+    const count = coreGetSegCount();
+    for (let i = 1; i <= count; i++) {
+      const seg = coreGetSeg(i);
+      if (seg != null) {
+        drawSegmentOnCommit(seg[0], seg[1], seg[2], seg[3],
+                            seg[4], seg[5], seg[6], seg[7], seg[8]);
+      }
+    }
+    renderedSegmentCount = count;
+  }
+
+  function renderIncrementalSegments(coreGetSegCount, coreGetSeg) {
+    const count = coreGetSegCount();
+    for (let i = renderedSegmentCount + 1; i <= count; i++) {
+      const seg = coreGetSeg(i);
+      if (seg != null) {
+        drawSegmentOnCommit(seg[0], seg[1], seg[2], seg[3],
+                            seg[4], seg[5], seg[6], seg[7], seg[8]);
+      }
+    }
+    renderedSegmentCount = count;
+  }
+
+  function renderFrame(state, bgColor, previewLine) {
+    const w = canvas.width / (window.devicePixelRatio || 1);
+    const h = canvas.height / (window.devicePixelRatio || 1);
+
+    // Background
+    ctx.fillStyle = colorToCSS(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
+    ctx.fillRect(0, 0, w, h);
+
+    // Committed segments
+    if (commitCanvas) {
+      ctx.drawImage(commitCanvas, 0, 0, w, h);
+    }
+
+    // Preview line (in-progress move)
+    if (previewLine) {
+      ctx.beginPath();
+      ctx.moveTo(screenX(previewLine[0]), screenY(previewLine[1]));
+      ctx.lineTo(screenX(previewLine[2]), screenY(previewLine[3]));
+      ctx.strokeStyle = colorToCSS(previewLine[4], previewLine[5],
+                                   previewLine[6], previewLine[7]);
+      ctx.lineWidth = previewLine[8];
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    // Turtle head
+    const sx = screenX(state.x);
+    const sy = screenY(state.y);
+    const screenAngle = -state.angle * Math.PI / 180;
+
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(screenAngle);
+    const s = 10;
+    ctx.beginPath();
+    ctx.moveTo(s, 0);
+    ctx.lineTo(-s * 0.6, s * 0.6);
+    ctx.lineTo(-s * 0.6, -s * 0.6);
+    ctx.closePath();
+    ctx.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- Wasmoon / Lua setup ----
+
+  setStatus('Loading Lua VM...');
+
+  let lua = null;
+  let coreUpdate = null;
+  let coreGetTurtleState = null;
+  let coreGetBgColor = null;
+  let coreGetSegmentCount = null;
+  let coreGetSegment = null;
+  let coreGetPreviewLine = null;
+  let coreIsBusy = null;
+  let coreInterrupt = null;
+
+  try {
+    const factory = new wasmoon.LuaFactory();
+    lua = await factory.createEngine();
+
+    const coreLuaSource = await fetch('core.lua').then(r => r.text()).catch(() => null);
+
+    if (coreLuaSource) {
+      await factory.mountFile('core.lua', coreLuaSource);
+    } else {
+      setStatus('Error: core.lua not found. Serve it alongside index.html.', true);
+      return;
+    }
+
+    await lua.doString(`
+      Core = require("core")
+      turtle = Core.new(nil)
+
+      _bridge_update          = function(dt) return turtle.update(dt) end
+      _bridge_turtle_state    = function() return turtle.get_turtle_state() end
+      _bridge_bg_color        = function() return turtle.get_bg_color() end
+      _bridge_segment_count   = function() return turtle.get_segment_count() end
+      _bridge_segment         = function(i) return turtle.get_segment(i) end
+      _bridge_preview_line    = function() return turtle.get_preview_line() end
+      _bridge_is_busy         = function() return turtle.is_busy() end
+      _bridge_interrupt       = function() return turtle.interrupt() end
+    `);
+
+    coreUpdate          = lua.global.get('_bridge_update');
+    coreGetTurtleState  = lua.global.get('_bridge_turtle_state');
+    coreGetBgColor      = lua.global.get('_bridge_bg_color');
+    coreGetSegmentCount = lua.global.get('_bridge_segment_count');
+    coreGetSegment      = lua.global.get('_bridge_segment');
+    coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
+    coreIsBusy          = lua.global.get('_bridge_is_busy');
+    coreInterrupt       = lua.global.get('_bridge_interrupt');
+
+    setStatus('Ready \u2014 click Run or press Ctrl+Enter');
+
+  } catch (err) {
+    setStatus('Failed to load: ' + err.message, true);
+    console.error(err);
+    return;
+  }
+
+  // ---- Run user code ----
+
+  async function runUserCode() {
+    const code = editor.getValue();
+
+    coreInterrupt();
+
+    await lua.doString(`
+      turtle.x = 0
+      turtle.y = 0
+      turtle.angle = 0
+      turtle.pen_down = true
+      turtle.pen_color = {1, 1, 1, 1}
+      turtle.pen_size = 2
+      turtle.bg_color = {0.07, 0.07, 0.07, 1}
+      turtle.speed_setting = 5
+      turtle.actions = {}
+      turtle.current = nil
+      turtle.segments = {}
+    `);
+
+    renderedSegmentCount = 0;
+    const w = commitCanvas.width / (window.devicePixelRatio || 1);
+    const h = commitCanvas.height / (window.devicePixelRatio || 1);
+    commitCtx.clearRect(0, 0, w, h);
+
+    try {
+      await lua.doString(`
+        local env = {
+          math = math,
+          ipairs = ipairs,
+          pairs = pairs,
+          tostring = tostring,
+          tonumber = tonumber,
+          print = print,
+          type = type,
+          string = string,
+          table = table,
+
+          forward = function(...) return turtle.forward(...) end,
+          back    = function(...) return turtle.back(...)    end,
+          left    = function(...) return turtle.left(...)    end,
+          right   = function(...) return turtle.right(...)   end,
+          fd = function(...) return turtle.forward(...) end,
+          bk = function(...) return turtle.back(...)    end,
+          lt = function(...) return turtle.left(...)    end,
+          rt = function(...) return turtle.right(...)   end,
+
+          penup    = function(...) return turtle.penup(...)    end,
+          pendown  = function(...) return turtle.pendown(...)  end,
+          pu       = function(...) return turtle.penup(...)    end,
+          pd       = function(...) return turtle.pendown(...)  end,
+          pensize  = function(...) return turtle.pensize(...)  end,
+          pencolor = function(...) return turtle.pencolor(...) end,
+          bgcolor  = function(...) return turtle.bgcolor(...)  end,
+          clear    = function(...) return turtle.clear(...)    end,
+          reset    = function(...) return turtle.reset(...)    end,
+          speed    = function(...) return turtle.speed(...)    end,
+
+          position = function(...) return turtle.position(...) end,
+          heading  = function(...) return turtle.heading(...)  end,
+          isdown   = function(...) return turtle.isdown(...)   end,
+        }
+
+        local chunk, err = load(user_code, "user_code", "t", env)
+        if not chunk then
+          error("Syntax error: " .. tostring(err))
+        end
+        chunk()
+      `);
+
+      setStatus('Running');
+    } catch (err) {
+      const msg = err.message || String(err);
+      const cleaned = msg.replace(/^.*Lua Error\([^)]*\):\s*/, '');
+      setStatus(cleaned, true);
+      console.error('User code error:', err);
+    }
+  }
+
+  // ---- Game loop ----
+
+  let lastTime = null;
+
+  function gameLoop(timestamp) {
+    requestAnimationFrame(gameLoop);
+
+    if (lastTime === null) { lastTime = timestamp; return; }
+    let dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+    if (dt > 0.1) dt = 0.1;
+
+    try {
+      coreUpdate(dt);
+    } catch (err) {
+      console.error('Update error:', err);
+    }
+
+    try {
+      if (needsFullRedraw) {
+        fullRedrawCommitted(coreGetSegmentCount, coreGetSegment);
+        needsFullRedraw = false;
+      } else {
+        renderIncrementalSegments(coreGetSegmentCount, coreGetSegment);
+      }
+
+      const state = coreGetTurtleState();
+      const bgColor = coreGetBgColor();
+
+      let previewLine = null;
+      const pv = coreGetPreviewLine();
+      if (pv != null && pv[0] != null) {
+        previewLine = pv;
+      }
+
+      renderFrame(state, bgColor, previewLine);
+
+      const busy = coreIsBusy();
+      if (busy === 0 && statusBar.textContent === 'Running') {
+        setStatus('Done');
+      }
+    } catch (err) {
+      console.error('Render error:', err);
+    }
+  }
+
+  // ---- Wire up controls ----
+
+  document.getElementById('btn-run').addEventListener('click', async () => {
+    const code = editor.getValue();
+    lua.global.set('user_code', code);
+    await runUserCode();
+  });
+
+  document.getElementById('btn-stop').addEventListener('click', () => {
+    coreInterrupt();
+    setStatus('Stopped');
+  });
+
+  editor.setOption('extraKeys', {
+    'Ctrl-Enter': () => document.getElementById('btn-run').click(),
+    'Cmd-Enter': () => document.getElementById('btn-run').click(),
+  });
+
+  // ---- Start ----
+
+  requestAnimationFrame(gameLoop);
+
+})();
+</script>
+
+</body>
+</html>
