@@ -494,6 +494,11 @@
           position = function(...) return turtle.position(...) end,
           heading  = function(...) return turtle.heading(...)  end,
           isdown   = function(...) return turtle.isdown(...)   end,
+
+          setheading = function(...) return turtle.setheading(...) end,
+          seth       = function(...) return turtle.setheading(...) end,
+          home       = function(...) return turtle.home(...)       end,
+          setpos     = function(...) return turtle.setpos(...)   end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
@@ -502,6 +507,7 @@
         end
         chunk()
       `);
+
 
       setStatus('Running');
     } catch (err) {

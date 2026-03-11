@@ -39,6 +39,7 @@ function Core.new(renderer)
     -- Helpers
     ----------------------------------------------------------------
 
+    -- movement speed
     local function move_speed()
         if self.speed_setting == 0 then return math.huge end
         return self.base_move_speed * self.speed_setting
@@ -47,6 +48,25 @@ function Core.new(renderer)
     local function turn_speed()
         if self.speed_setting == 0 then return math.huge end
         return self.base_turn_speed * self.speed_setting
+    end
+
+    -- calculate distance in units from a point, and in angle from a heading.
+    local function distance_to(tx, ty)
+        local dx = tx - self.x
+        local dy = ty - self.y
+        return math.sqrt(dx * dx + dy * dy)
+    end
+
+    local function towards(tx, ty)
+        local dx = tx - self.x
+        local dy = ty - self.y
+        return math.deg(math.atan(dy, dx)) % 360
+    end
+
+    local function shortest_turn(from, to)
+        local diff = (to - from) % 360
+        if diff > 180 then diff = diff - 360 end
+        return diff
     end
 
     -- Normalize a color channel: accept 0-1 or 0-255, clamp to 0-1.
@@ -64,6 +84,9 @@ function Core.new(renderer)
             normalize_channel(a, 1),
         }
     end
+
+   
+
 
     ----------------------------------------------------------------
     -- User-facing API: all commands are queued
@@ -85,6 +108,20 @@ function Core.new(renderer)
 
     function self.left(angle)
         table.insert(self.actions, {type = "turn", angle = angle or 0})
+    end
+
+    -- Absolute movement: enqueue intent, resolved at execution time.
+
+    function self.setheading(angle)
+        table.insert(self.actions, {type = "setheading", target_angle = angle or 0})
+    end
+
+    function self.home()
+        table.insert(self.actions, {type = "home"})
+    end
+
+    function self.setpos(tx, ty)
+        table.insert(self.actions, {type = "setpos", tx = tx or 0, ty = ty or 0})
     end
 
     -- Pen control
@@ -216,6 +253,34 @@ function Core.new(renderer)
             elseif next_action.type == "turn" then
                 next_action.remaining = next_action.angle
                 self.current = next_action
+
+            -- Absolute commands: dissolve into turn/move primitives
+            -- using the turtle's current (execution-time) state.
+
+            elseif next_action.type == "setheading" then
+                local turn = shortest_turn(self.angle, next_action.target_angle % 360)
+                if math.abs(turn) > 1e-6 then
+                    table.insert(self.actions, 1, {type = "turn", angle = turn})
+                end
+
+            elseif next_action.type == "setpos" then
+                local dist = distance_to(next_action.tx, next_action.ty)
+                if dist > 1e-6 then
+                    local heading = towards(next_action.tx, next_action.ty)
+                    local turn = shortest_turn(self.angle, heading)
+                    -- Insert move first (it'll be at index 2), then turn
+                    -- in front of it (at index 1). They execute turn, then move.
+                    table.insert(self.actions, 1, {type = "move", distance = dist})
+                    if math.abs(turn) > 1e-6 then
+                        table.insert(self.actions, 1, {type = "turn", angle = turn})
+                    end
+                end
+
+            elseif next_action.type == "home" then
+                -- home = go to (0,0), then face 0°.
+                -- Insert in reverse order: setheading last, setpos first.
+                table.insert(self.actions, 1, {type = "setheading", target_angle = 0})
+                table.insert(self.actions, 1, {type = "setpos", tx = 0, ty = 0})
             end
         end
 
