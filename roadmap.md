@@ -55,10 +55,12 @@ Here's the corrected roadmap:
   
 2. **Deferred MVP features** (from spec, not yet implemented)
    - `circle(radius)` / `circle(radius, extent)`
-   - `goto(x, y)` / `setpos(x, y)`
-   - `setheading(angle)` / `seth(angle)`
-   - `home()`
+   [x] `goto(x, y)` / `setpos(x, y)`
+   [x] `setheading(angle)` / `seth(angle)`
+   [x] `home()`
    - `begin_fill()` / `end_fill()`
+   - undo queue
+   - zoom in/out
    - `write(text, font, size)`
    - Named colors (`pencolor("red")`)
    - `stamp()` / `clearstamp()` / `clearstamps()`
