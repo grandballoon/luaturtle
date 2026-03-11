@@ -39,6 +39,7 @@ function Core.new(renderer)
     -- Helpers
     ----------------------------------------------------------------
 
+    -- movement speed
     local function move_speed()
         if self.speed_setting == 0 then return math.huge end
         return self.base_move_speed * self.speed_setting
@@ -47,6 +48,34 @@ function Core.new(renderer)
     local function turn_speed()
         if self.speed_setting == 0 then return math.huge end
         return self.base_turn_speed * self.speed_setting
+    end
+
+    -- calculate distance in units from a point, and in angle from a heading.
+    local function distance_to(tx, ty)
+        local dx = tx - self.x
+        local dy = ty - self.y
+        return math.sqrt(dx * dx + dy * dy)
+    end
+
+    local function towards(tx, ty)
+        local dx = tx - self.x
+        local dy = ty - self.y
+        return math.deg(math.atan(dy, dx)) % 360
+    end
+
+    local function shortest_turn(from, to)
+        local diff = (to - from) % 360
+        if diff > 180 then diff = diff - 360 end
+        return diff
+    end
+
+    local function enqueue_turn_towards(target_angle)
+        local turn = shortest_turn(self.angle, target_angle)
+        if turn >= 0 then
+            self.left(turn)
+        else
+            self.right(-turn)
+        end
     end
 
     -- Normalize a color channel: accept 0-1 or 0-255, clamp to 0-1.
@@ -64,6 +93,9 @@ function Core.new(renderer)
             normalize_channel(a, 1),
         }
     end
+
+   
+
 
     ----------------------------------------------------------------
     -- User-facing API: all commands are queued
@@ -85,6 +117,21 @@ function Core.new(renderer)
 
     function self.left(angle)
         table.insert(self.actions, {type = "turn", angle = angle or 0})
+    end
+
+    function self.setheading(angle)
+        enqueue_turn_towards(angle)
+    end
+
+    function self.home()
+        enqueue_turn_towards(towards(0, 0))
+        self.forward(distance_to(0, 0))
+        self.setheading(0)
+    end
+
+    function self.setpos(tx, ty)
+        enqueue_turn_towards(towards(tx, ty))
+        self.forward(distance_to(tx, ty))
     end
 
     -- Pen control
