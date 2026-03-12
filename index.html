@@ -389,7 +389,7 @@
   let coreInterrupt = null;
 
   try {
-    const factory = new wasmoon.LuaFactory();
+    const factory = new wasmoon.LuaFactory('glue.wasm');
     lua = await factory.createEngine();
 
     const coreLuaSource = await fetch('core.lua').then(r => r.text()).catch(() => null);
