@@ -54,7 +54,8 @@ Here's the corrected roadmap:
    - Refine written spec as needed; begin ongoing process of documentation.
   
 2. **Deferred MVP features** (from spec, not yet implemented)
-   - `circle(radius)` / `circle(radius, extent)`
+   - `circle(radius)` / `circle(radius, extent)` - extent is a fraction
+   - `arc(deg, radius)` / draw an arc of certain degrees; radius defaults to 100
    [x] `goto(x, y)` / `setpos(x, y)`
    [x] `setheading(angle)` / `seth(angle)`
    [x] `home()`
@@ -63,7 +64,6 @@ Here's the corrected roadmap:
    - zoom in/out
    - `write(text, font, size)`
    - Named colors (`pencolor("red")`)
-   - `stamp()` / `clearstamp()` / `clearstamps()`
 
 3. **Polish**
    - Mobile layout testing (the CSS has responsive rules — verify they work)
@@ -75,9 +75,53 @@ Here's the corrected roadmap:
    - SPIKE: investigate the world of "friendly" error handling (e.g. p5.js)
    - SPIKE (dependent on point immediately above this one): implement a "Super Mario Effect Mode"? 
 
-4. **Deploy v1.0 to luaturtle.com**
+4. **Deploy v0.1 to luaturtle.com**
 
-
+**User-facing functions to be implemented after v0.1**:
+   - Add multiple turtles
+   - `setx` and `sety` functions
+   - add `playsound` features (if accomodated by browser - otherwise, defer to luarocks distribution)
+   - add clickhandler and keypress handlers (if accomodated by browser - otherwise, defer to luarocks distribution)
+   - Add a background image
+   - Change turtle shape to circle, classic "turtle," star, or square
+   - `dot(size)` function draws a dot on the canvas at turtle location
+   - `turtles` function returns a table of all existing turtles
+   - Add custom "sprites" for the turtle avatar (SPIKE: sprite file or data specification TBD)
+   - Change the fill and border colors of the turtle
+   - Change the size of the turtle avatar
+   - `teleport` function which changes turtle's (x, y) coordinates without changing heading or drawing a line
+   - stamp an image of the turtle's current avatar onto the canvas using `stamp` and return a `stamp` object
+   - clear all stamps from the canvas using `clearstamp`
+   - Clear only certain stamps from the canvas using `clearstamp(stamp_identifer)` (SPIKE: shape of stamp object, and its unique ID info, TBD)
+   - Set the size of the undo queue
+   - Get only the turtle's x or y coordinate using `getx` and `gety`
+   - Set angle measurement to radians
+   - `tilt(angle)` function sets the tilt angle of the turtle avatar without changing its heading
+   - State getters for the turtle:
+      -    is_visible
+      -    is_pendown/is_pd
+      -    pencolor
+      -    fillcolor
+      -    bordercolor
+      -    pensize
+      -    speed
+      -    tilt
+   - Clear a given turtle from the canvas without removing its previous drawings
+   - `ondrag` and `onrelease` handlers copied from the Python implementation (browser permitting—not worth adding PixiJS for this alone; defer to luarocks release)
+   - Clone an existing turtle and return a new turtle with its properties at the moment of cloning, now added to the canvas
+   - SPIKE: upload a custom coordinate system (dependent on further reading of the 3D implementations and other more advanced math portions of the Turtle Geometry Textbook from MIT)
+   - Disable turtle animation to produce drawings immediately
+   - Setter and getter for a `delay` value between turtle actions in milliseconds
+   - SPIKE: accommodate user input via the browser's `input` pop-ups
+   - Accommodate hex values for color in addition to strings and RGBA, if possible
+   - Get current canvas height and width
+   - Save the current drawing
+   - Save a GIF of the turtle's full animated progression
+   - Save, copy, or download the current code
+   - Turn on a "wrap" functionality in which the turtle wraps around the edge of the screen
+   - Add a `touch` handler when a turtle collides with another turtle on-screen
+   - SPIKE: enter code with a gamepad (may defer to a non-browser/non-luaturtle.com implementation—part of IDE enhancements)
+   - 
 
 ---
 
