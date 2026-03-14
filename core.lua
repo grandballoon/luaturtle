@@ -144,6 +144,20 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "pencolor", r = r, g = g, b = b, a = a})
     end
 
+    -- Shapes
+
+    -- Shapes
+
+    function self.arc(radius, degrees)
+        table.insert(self.actions, {type = "arc", radius = radius or 100, degrees = degrees or 120})
+    end
+    
+    function self.circle(radius, extent)
+        -- extent is a fraction of a full circle (1 = full, 1/4 = quarter, etc.)
+        -- defaults to a full circle
+        self.arc(radius, (extent or 1) * 360)
+    end
+
     -- Canvas
 
     function self.bgcolor(r, g, b, a)
