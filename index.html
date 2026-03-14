@@ -499,6 +499,8 @@
           seth       = function(...) return turtle.setheading(...) end,
           home       = function(...) return turtle.home(...)       end,
           setpos     = function(...) return turtle.setpos(...)   end,
+          arc        = function(...) return turtle.arc(...)    end,
+          circle     = function(...) return turtle.circle(...) end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
