@@ -351,6 +351,25 @@ function Core.new(renderer)
                 self.current = nil
             end
         end
+
+        elseif next_action.type == "arc" then
+            local degrees = next_action.degrees
+            local radius  = next_action.radius
+            -- N segments: ~1 per 6 degrees, minimum 1.
+            -- Sign of degrees controls direction (positive = CCW, negative = CW).
+            local N = math.max(1, math.floor(math.abs(degrees) / 6))
+            local slice_angle = degrees / N
+            -- chord length for one slice of the arc
+            local chord = 2 * math.abs(radius) * math.sin(math.pi * math.abs(slice_angle) / 360)
+            -- For a negative radius, the arc curves the other way:
+            -- flip the turn direction while keeping forward motion positive.
+            local turn_angle = slice_angle * (radius >= 0 and 1 or -1)
+            -- Insert N turn+move pairs at the front of the queue, in reverse
+            -- order so that index 1 always holds the next action to execute.
+            for i = N, 1, -1 do
+                table.insert(self.actions, 1, {type = "move", distance = chord})
+                table.insert(self.actions, 1, {type = "turn", angle = turn_angle})
+        end
     end
 
     ----------------------------------------------------------------
