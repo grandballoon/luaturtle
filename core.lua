@@ -31,6 +31,18 @@ function Core.new(renderer)
         -- committed segments (append-only log)
         segments = {},
 
+        -- fill state
+        -- fill_color is nil until setfillcolor() is called; nil means
+        -- "use pen color at begin_fill execution time". This is the only
+        -- persistent state with no immediate visible effect — it is latent
+        -- until end_fill fires.
+        fill_active = false,
+        fill_vertices = {},
+        fill_color = nil,
+
+        -- committed fills (append-only log)
+        fills = {},
+
         -- renderer (injected)
         renderer = renderer,
     }
@@ -143,6 +155,8 @@ function Core.new(renderer)
 
     -- Resolve a color argument to a {r, g, b, a} table.
     -- Accepts a name string or numeric r, g, b[, a] in 0..1 or 0..255.
+    -- When a string name is given, g doubles as an optional alpha override:
+    --   pencolor("red", 0.5)  -> red at half opacity
     -- Throws on unknown names so the error surfaces immediately to the user.
     local function resolve_color(r, g, b, a)
         if type(r) == "string" then
@@ -150,6 +164,7 @@ function Core.new(renderer)
             if not entry then
                 error("unknown color: '" .. r .. "'", 2)
             end
+            -- g doubles as alpha when r is a string, e.g. pencolor("red", 0.5)
             local alpha = (type(g) == "number") and math.max(0, math.min(1, g)) or entry[4]
             return {entry[1], entry[2], entry[3], alpha}
         end
@@ -219,11 +234,26 @@ function Core.new(renderer)
     function self.arc(radius, degrees)
         table.insert(self.actions, {type = "arc", radius = radius or 100, degrees = degrees or 120})
     end
-    
+
     function self.circle(radius, extent)
         -- extent is a fraction of a full circle (1 = full, 1/4 = quarter, etc.)
         -- defaults to a full circle
         self.arc(radius, (extent or 1) * 360)
+    end
+
+    -- Fill
+
+    function self.setfillcolor(r, g, b, a)
+        local c = resolve_color(r, g, b, a)
+        table.insert(self.actions, {type = "setfillcolor", r = c[1], g = c[2], b = c[3], a = c[4]})
+    end
+
+    function self.begin_fill()
+        table.insert(self.actions, {type = "begin_fill"})
+    end
+
+    function self.end_fill()
+        table.insert(self.actions, {type = "end_fill"})
     end
 
     -- Canvas
@@ -304,8 +334,35 @@ function Core.new(renderer)
             elseif next_action.type == "speed" then
                 self.speed_setting = next_action.value
 
+            elseif next_action.type == "setfillcolor" then
+                self.fill_color = {next_action.r, next_action.g, next_action.b, next_action.a}
+
+            elseif next_action.type == "begin_fill" then
+                if self.fill_active then
+                    print("begin_fill called again before end_fill — starting a new fill region from here")
+                end
+                self.fill_active = true
+                self.fill_vertices = {{x = self.x, y = self.y}}
+
+            elseif next_action.type == "end_fill" then
+                if self.fill_active and #self.fill_vertices >= 3 then
+                    local color = self.fill_color or {
+                        self.pen_color[1], self.pen_color[2],
+                        self.pen_color[3], self.pen_color[4],
+                    }
+                    table.insert(self.fills, {
+                        vertices = self.fill_vertices,
+                        color = color,
+                    })
+                end
+                self.fill_active = false
+                self.fill_vertices = {}
+
             elseif next_action.type == "clear" then
                 self.segments = {}
+                self.fills = {}
+                self.fill_active = false
+                self.fill_vertices = {}
                 self.current = nil
                 if self.renderer then
                     self.renderer:commit_clear()
@@ -321,6 +378,10 @@ function Core.new(renderer)
                 self.bg_color = {0.07, 0.07, 0.07, 1}
                 self.speed_setting = 5
                 self.segments = {}
+                self.fills = {}
+                self.fill_active = false
+                self.fill_vertices = {}
+                self.fill_color = nil
                 self.current = nil
                 if self.renderer then
                     self.renderer:commit_clear()
@@ -364,7 +425,6 @@ function Core.new(renderer)
                 -- Insert in reverse order: setheading last, setpos first.
                 table.insert(self.actions, 1, {type = "setheading", target_angle = 0})
                 table.insert(self.actions, 1, {type = "setpos", tx = 0, ty = 0})
-
 
             elseif next_action.type == "arc" then
                 local degrees = next_action.degrees
@@ -420,6 +480,10 @@ function Core.new(renderer)
                     if self.renderer then
                         self.renderer:commit_segment(segment)
                     end
+                end
+                -- Record vertex for any active fill region.
+                if self.fill_active then
+                    table.insert(self.fill_vertices, {x = self.x, y = self.y})
                 end
                 self.current = nil
             end
@@ -483,6 +547,18 @@ function Core.new(renderer)
         return { s.from.x, s.from.y, s.to.x, s.to.y,
                  s.color[1], s.color[2], s.color[3], s.color[4],
                  s.width }
+    end
+
+    -- Returns: total number of committed fills
+    function self.get_fill_count()
+        return #self.fills
+    end
+
+    -- Returns one fill by 1-based index as a named table:
+    -- { vertices = {{x,y}, ...}, color = {r,g,b,a} }
+    -- Returns nil if index is out of range.
+    function self.get_fill(i)
+        return self.fills[i]
     end
 
     -- Returns preview line as a flat array, same shape as a segment.

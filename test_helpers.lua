@@ -9,6 +9,7 @@ function helpers.make_test_renderer()
         segments = {},
         clears = 0,
         bgcolors = {},
+        fills = {},
     }
     function r:commit_segment(seg)
         table.insert(self.segments, seg)
@@ -18,6 +19,9 @@ function helpers.make_test_renderer()
     end
     function r:set_bgcolor(color)
         table.insert(self.bgcolors, color)
+    end
+    function r:commit_fill(vertices, color)
+        table.insert(self.fills, {vertices = vertices, color = color})
     end
     return r
 end

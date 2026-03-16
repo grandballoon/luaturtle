@@ -290,9 +290,9 @@
   }
 
   let renderedSegmentCount = 0;
+  let renderedFillCount = 0;
 
   function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
-    console.log('segment color:', r, g, b, a);
     commitCtx.beginPath();
     commitCtx.moveTo(screenX(fromX), screenY(fromY));
     commitCtx.lineTo(screenX(toX), screenY(toY));
@@ -302,11 +302,30 @@
     commitCtx.stroke();
   }
 
+  function drawFill(vertices, color) {
+    // vertices is a named-table array from Lua — arrives as a JS object
+    // with numeric string keys. color is a 0-indexed JS array.
+    const r = color[0], g = color[1], b = color[2], a = color[3];
+    const len = Object.keys(vertices).length;
+    if (len < 3) return;
+    commitCtx.save();
+    commitCtx.fillStyle = colorToCSS(r, g, b, a);
+    commitCtx.beginPath();
+    commitCtx.moveTo(screenX(vertices[0].x), screenY(vertices[0].y));
+    for (let i = 1; i < len; i++) {
+      commitCtx.lineTo(screenX(vertices[i].x), screenY(vertices[i].y));
+    }
+    commitCtx.closePath();
+    commitCtx.fill();
+    commitCtx.restore();
+  }
+
   function fullRedrawCommitted(coreGetSegCount, coreGetSeg) {
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
     renderedSegmentCount = 0;
+    renderedFillCount = 0;
 
     const count = coreGetSegCount();
     for (let i = 1; i <= count; i++) {
@@ -331,6 +350,17 @@
     renderedSegmentCount = count;
   }
 
+  function renderIncrementalFills(coreGetFillCount, coreGetFill) {
+    const count = coreGetFillCount();
+    for (let i = renderedFillCount + 1; i <= count; i++) {
+      const fill = coreGetFill(i);
+      if (fill != null) {
+        drawFill(fill.vertices, fill.color);
+      }
+    }
+    renderedFillCount = count;
+  }
+
   function renderFrame(state, bgColor, previewLine) {
     const w = canvas.width / (window.devicePixelRatio || 1);
     const h = canvas.height / (window.devicePixelRatio || 1);
@@ -339,7 +369,7 @@
     ctx.fillStyle = colorToCSS(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
     ctx.fillRect(0, 0, w, h);
 
-    // Committed segments
+    // Committed segments and fills
     if (commitCanvas) {
       ctx.drawImage(commitCanvas, 0, 0, w, h);
     }
@@ -385,6 +415,8 @@
   let coreGetBgColor = null;
   let coreGetSegmentCount = null;
   let coreGetSegment = null;
+  let coreGetFillCount = null;
+  let coreGetFill = null;
   let coreGetPreviewLine = null;
   let coreIsBusy = null;
   let coreInterrupt = null;
@@ -411,6 +443,8 @@
       _bridge_bg_color        = function() return turtle.get_bg_color() end
       _bridge_segment_count   = function() return turtle.get_segment_count() end
       _bridge_segment         = function(i) return turtle.get_segment(i) end
+      _bridge_fill_count      = function() return turtle.get_fill_count() end
+      _bridge_fill            = function(i) return turtle.get_fill(i) end
       _bridge_preview_line    = function() return turtle.get_preview_line() end
       _bridge_is_busy         = function() return turtle.is_busy() end
       _bridge_interrupt       = function() return turtle.interrupt() end
@@ -421,6 +455,8 @@
     coreGetBgColor      = lua.global.get('_bridge_bg_color');
     coreGetSegmentCount = lua.global.get('_bridge_segment_count');
     coreGetSegment      = lua.global.get('_bridge_segment');
+    coreGetFillCount    = lua.global.get('_bridge_fill_count');
+    coreGetFill         = lua.global.get('_bridge_fill');
     coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
     coreIsBusy          = lua.global.get('_bridge_is_busy');
     coreInterrupt       = lua.global.get('_bridge_interrupt');
@@ -452,9 +488,14 @@
       turtle.actions = {}
       turtle.current = nil
       turtle.segments = {}
+      turtle.fills = {}
+      turtle.fill_active = false
+      turtle.fill_vertices = {}
+      turtle.fill_color = nil
     `);
 
     renderedSegmentCount = 0;
+    renderedFillCount = 0;
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
@@ -496,14 +537,16 @@
           heading  = function(...) return turtle.heading(...)  end,
           isdown   = function(...) return turtle.isdown(...)   end,
 
-          setheading = function(...) return turtle.setheading(...) end,
-          seth       = function(...) return turtle.setheading(...) end,
-          home       = function(...) return turtle.home(...)       end,
-          setpos     = function(...) return turtle.setpos(...)   end,
-          arc        = function(...) return turtle.arc(...)    end,
-          circle     = function(...) return turtle.circle(...) end,
-          pu = function(...) return turtle.penup(...) end,
-          pd = function(...) return turtle.pendown(...) end,
+          setheading   = function(...) return turtle.setheading(...)   end,
+          seth         = function(...) return turtle.setheading(...)   end,
+          home         = function(...) return turtle.home(...)         end,
+          setpos       = function(...) return turtle.setpos(...)       end,
+          arc          = function(...) return turtle.arc(...)          end,
+          circle       = function(...) return turtle.circle(...)       end,
+
+          setfillcolor = function(...) return turtle.setfillcolor(...) end,
+          begin_fill   = function(...) return turtle.begin_fill(...)   end,
+          end_fill     = function(...) return turtle.end_fill(...)     end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
@@ -512,7 +555,6 @@
         end
         chunk()
       `);
-
 
       setStatus('Running');
     } catch (err) {
@@ -546,6 +588,7 @@
         fullRedrawCommitted(coreGetSegmentCount, coreGetSegment);
         needsFullRedraw = false;
       } else {
+        renderIncrementalFills(coreGetFillCount, coreGetFill);
         renderIncrementalSegments(coreGetSegmentCount, coreGetSegment);
       }
 
