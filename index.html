@@ -292,6 +292,7 @@
   let renderedSegmentCount = 0;
 
   function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
+    console.log('segment color:', r, g, b, a);
     commitCtx.beginPath();
     commitCtx.moveTo(screenX(fromX), screenY(fromY));
     commitCtx.lineTo(screenX(toX), screenY(toY));
@@ -501,6 +502,8 @@
           setpos     = function(...) return turtle.setpos(...)   end,
           arc        = function(...) return turtle.arc(...)    end,
           circle     = function(...) return turtle.circle(...) end,
+          pu = function(...) return turtle.penup(...) end,
+          pd = function(...) return turtle.pendown(...) end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
