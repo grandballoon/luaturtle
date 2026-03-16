@@ -85,7 +85,76 @@ function Core.new(renderer)
         }
     end
 
-   
+    -- Named color palette (0..1 RGBA)
+    local COLORS = {
+        white        = {1,     1,     1,     1},
+        black        = {0,     0,     0,     1},
+        red          = {1,     0,     0,     1},
+        green        = {0,     0.8,   0,     1},
+        blue         = {0,     0,     1,     1},
+        yellow       = {1,     1,     0,     1},
+        orange       = {1,     0.55,  0,     1},
+        purple       = {0.6,   0,     0.8,   1},
+        pink         = {1,     0.41,  0.71,  1},
+        brown        = {0.55,  0.27,  0.07,  1},
+        gray         = {0.5,   0.5,   0.5,   1},
+        grey         = {0.5,   0.5,   0.5,   1},
+        crimson      = {0.86,  0.08,  0.24,  1},
+        coral        = {1,     0.50,  0.31,  1},
+        salmon       = {0.98,  0.50,  0.45,  1},
+        hotpink      = {1,     0.41,  0.71,  1},
+        deeppink     = {1,     0.08,  0.58,  1},
+        magenta      = {1,     0,     1,     1},
+        maroon       = {0.5,   0,     0,     1},
+        gold         = {1,     0.84,  0,     1},
+        khaki        = {0.94,  0.90,  0.55,  1},
+        peach        = {1,     0.85,  0.73,  1},
+        lightyellow  = {1,     1,     0.88,  1},
+        lime         = {0,     1,     0,     1},
+        limegreen    = {0.20,  0.80,  0.20,  1},
+        forestgreen  = {0.13,  0.55,  0.13,  1},
+        darkgreen    = {0,     0.39,  0,     1},
+        olive        = {0.5,   0.5,   0,     1},
+        teal         = {0,     0.5,   0.5,   1},
+        mint         = {0.60,  1,     0.60,  1},
+        sage         = {0.56,  0.74,  0.56,  1},
+        cyan         = {0,     1,     1,     1},
+        skyblue      = {0.53,  0.81,  0.98,  1},
+        steelblue    = {0.27,  0.51,  0.71,  1},
+        royalblue    = {0.25,  0.41,  0.88,  1},
+        navy         = {0,     0,     0.5,   1},
+        dodgerblue   = {0.12,  0.56,  1,     1},
+        turquoise    = {0.25,  0.88,  0.82,  1},
+        indigo       = {0.29,  0,     0.51,  1},
+        violet       = {0.93,  0.51,  0.93,  1},
+        lavender     = {0.71,  0.49,  0.86,  1},
+        plum         = {0.87,  0.63,  0.87,  1},
+        orchid       = {0.85,  0.44,  0.84,  1},
+        silver       = {0.75,  0.75,  0.75,  1},
+        lightgray    = {0.83,  0.83,  0.83,  1},
+        lightgrey    = {0.83,  0.83,  0.83,  1},
+        darkgray     = {0.25,  0.25,  0.25,  1},
+        darkgrey     = {0.25,  0.25,  0.25,  1},
+        charcoal     = {0.21,  0.27,  0.31,  1},
+        cream        = {1,     0.99,  0.82,  1},
+        ivory        = {1,     1,     0.94,  1},
+        beige        = {0.96,  0.96,  0.86,  1},
+    }
+
+    -- Resolve a color argument to a {r, g, b, a} table.
+    -- Accepts a name string or numeric r, g, b[, a] in 0..1 or 0..255.
+    -- Throws on unknown names so the error surfaces immediately to the user.
+    local function resolve_color(r, g, b, a)
+        if type(r) == "string" then
+            local entry = COLORS[r] or COLORS[r:lower()]
+            if not entry then
+                error("unknown color: '" .. r .. "'", 2)
+            end
+            local alpha = (type(g) == "number") and math.max(0, math.min(1, g)) or entry[4]
+            return {entry[1], entry[2], entry[3], alpha}
+        end
+        return normalize_color(r, g, b, a)
+    end
 
 
     ----------------------------------------------------------------
@@ -141,10 +210,9 @@ function Core.new(renderer)
     end
 
     function self.pencolor(r, g, b, a)
-        table.insert(self.actions, {type = "pencolor", r = r, g = g, b = b, a = a})
+        local c = resolve_color(r, g, b, a)
+        table.insert(self.actions, {type = "pencolor", r = c[1], g = c[2], b = c[3], a = c[4]})
     end
-
-    -- Shapes
 
     -- Shapes
 
@@ -161,7 +229,8 @@ function Core.new(renderer)
     -- Canvas
 
     function self.bgcolor(r, g, b, a)
-        table.insert(self.actions, {type = "bgcolor", r = r, g = g, b = b, a = a})
+        local c = resolve_color(r, g, b, a)
+        table.insert(self.actions, {type = "bgcolor", r = c[1], g = c[2], b = c[3], a = c[4]})
     end
 
     function self.clear()
