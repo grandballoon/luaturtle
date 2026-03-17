@@ -103,15 +103,28 @@
 
   #main {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 6px 1fr;
     overflow: hidden;
   }
 
   #editor-panel {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
     overflow: hidden;
+    min-width: 100px;
+  }
+
+  #splitter {
+    background: var(--border);
+    cursor: col-resize;
+    position: relative;
+    z-index: 10;
+    transition: background 0.15s ease;
+  }
+
+  #splitter:hover,
+  #splitter.dragging {
+    background: var(--accent-dim);
   }
 
   .CodeMirror {
@@ -143,6 +156,39 @@
     position: relative;
     background: var(--canvas-bg);
     overflow: hidden;
+    min-width: 100px;
+  }
+
+  #canvas-toolbar {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 5;
+    opacity: 0.08;
+    transition: opacity 0.2s ease;
+  }
+
+  #canvas-toolbar:hover {
+    opacity: 1;
+  }
+
+  #canvas-toolbar button {
+    padding: 4px 8px;
+    font-size: 11px;
+    background: rgba(35, 35, 35, 0.85);
+    border-color: rgba(51, 51, 51, 0.8);
+    min-width: 28px;
+  }
+
+  #zoom-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: var(--text-muted);
+    padding: 4px 6px;
+    line-height: 1.6;
+    user-select: none;
   }
 
   #turtle-canvas {
@@ -155,12 +201,22 @@
   @media (max-width: 768px) {
     #main {
       grid-template-columns: 1fr;
-      grid-template-rows: 1fr 1fr;
+      grid-template-rows: 1fr 6px 1fr;
+    }
+
+    #splitter {
+      cursor: row-resize;
     }
 
     #editor-panel {
-      border-right: none;
-      border-bottom: 1px solid var(--border);
+      border-bottom: none;
+      min-width: unset;
+      min-height: 80px;
+    }
+
+    #canvas-panel {
+      min-width: unset;
+      min-height: 80px;
     }
 
     .CodeMirror {
@@ -189,7 +245,14 @@
       <textarea id="editor-textarea"></textarea>
       <div id="status-bar">Loading...</div>
     </div>
+    <div id="splitter"></div>
     <div id="canvas-panel">
+      <div id="canvas-toolbar">
+        <button id="btn-zoom-in" title="Zoom in">+</button>
+        <button id="btn-zoom-out" title="Zoom out">&minus;</button>
+        <button id="btn-zoom-reset" title="Reset view">Reset</button>
+        <span id="zoom-label">100%</span>
+      </div>
       <canvas id="turtle-canvas"></canvas>
     </div>
   </div>
@@ -244,10 +307,63 @@
   let commitCanvas = null;
   let commitCtx = null;
 
+  // ---- Viewport state (zoom + pan) ----
+  // viewScale: 1 = 1:1 turtle pixel to screen pixel
+  // viewCenterX/Y: turtle-space coordinate at the center of the canvas
+  let viewScale = 1;
+  let viewCenterX = 0;
+  let viewCenterY = 0;
+
+  const ZOOM_MIN = 0.05;
+  const ZOOM_MAX = 20;
+  const ZOOM_STEP = 1.15;  // multiplier per click/scroll notch
+
+  function updateZoomLabel() {
+    document.getElementById('zoom-label').textContent =
+      Math.round(viewScale * 100) + '%';
+  }
+
+  function resetView() {
+    viewScale = 1;
+    viewCenterX = 0;
+    viewCenterY = 0;
+    updateZoomLabel();
+    needsFullRedraw = true;
+  }
+
+  // Zoom toward a point in screen-space (sx, sy).
+  // This keeps the turtle-space point under the cursor stationary.
+  function zoomAt(factor, sx, sy) {
+    const cssW = canvas.width / (window.devicePixelRatio || 1);
+    const cssH = canvas.height / (window.devicePixelRatio || 1);
+
+    // Convert screen point to turtle-space before zoom
+    const txBefore = (sx - cssW / 2) / viewScale + viewCenterX;
+    const tyBefore = -(sy - cssH / 2) / viewScale + viewCenterY;
+
+    viewScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, viewScale * factor));
+
+    // After zoom, what screen point does that turtle-space point map to?
+    // We want it to still be at (sx, sy), so adjust viewCenter.
+    viewCenterX = txBefore - (sx - cssW / 2) / viewScale;
+    viewCenterY = tyBefore + (sy - cssH / 2) / viewScale;
+
+    updateZoomLabel();
+    needsFullRedraw = true;
+  }
+
+  // Zoom toward canvas center (for button clicks)
+  function zoomCenter(factor) {
+    const cssW = canvas.width / (window.devicePixelRatio || 1);
+    const cssH = canvas.height / (window.devicePixelRatio || 1);
+    zoomAt(factor, cssW / 2, cssH / 2);
+  }
+
   function resizeCanvas() {
     const panel = document.getElementById('canvas-panel');
     const w = panel.clientWidth;
     const h = panel.clientHeight;
+    if (w === 0 || h === 0) return;  // collapsed panel
     const dpr = window.devicePixelRatio || 1;
 
     canvas.width = w * dpr;
@@ -266,17 +382,82 @@
   }
 
   let needsFullRedraw = true;
-  window.addEventListener('resize', resizeCanvas);
+
+  // ResizeObserver: fires on any panel size change (window resize,
+  // splitter drag, orientation change, devtools open, etc.)
+  const canvasPanel = document.getElementById('canvas-panel');
+  new ResizeObserver(() => resizeCanvas()).observe(canvasPanel);
   resizeCanvas();
 
-  // ---- Coordinate transforms ----
+  // ---- Coordinate transforms (viewport-aware) ----
 
   function screenX(tx) {
-    return (canvas.width / (window.devicePixelRatio || 1)) / 2 + tx;
+    const cssW = canvas.width / (window.devicePixelRatio || 1);
+    return cssW / 2 + (tx - viewCenterX) * viewScale;
   }
 
   function screenY(ty) {
-    return (canvas.height / (window.devicePixelRatio || 1)) / 2 - ty;
+    const cssH = canvas.height / (window.devicePixelRatio || 1);
+    return cssH / 2 - (ty - viewCenterY) * viewScale;
+  }
+
+  // ---- Zoom controls (toolbar buttons only) ----
+
+  document.getElementById('btn-zoom-in').addEventListener('click', () => zoomCenter(ZOOM_STEP));
+  document.getElementById('btn-zoom-out').addEventListener('click', () => zoomCenter(1 / ZOOM_STEP));
+  document.getElementById('btn-zoom-reset').addEventListener('click', resetView);
+
+  // ---- Splitter (resizable panels) ----
+
+  {
+    const mainEl = document.getElementById('main');
+    const splitter = document.getElementById('splitter');
+    let dragging = false;
+
+    splitter.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      dragging = true;
+      splitter.classList.add('dragging');
+      splitter.setPointerCapture(e.pointerId);
+    });
+
+    splitter.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const rect = mainEl.getBoundingClientRect();
+      const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+      if (isMobile) {
+        // Vertical split: drag changes row sizes
+        const y = e.clientY - rect.top;
+        const total = rect.height;
+        const pct = Math.max(10, Math.min(90, (y / total) * 100));
+        mainEl.style.gridTemplateRows = `${pct}% 6px 1fr`;
+      } else {
+        // Horizontal split: drag changes column sizes
+        const x = e.clientX - rect.left;
+        const total = rect.width;
+        const pct = Math.max(10, Math.min(90, (x / total) * 100));
+        mainEl.style.gridTemplateColumns = `${pct}% 6px 1fr`;
+      }
+      // CodeMirror needs to know its container changed size
+      editor.refresh();
+    });
+
+    const stopDrag = () => {
+      if (dragging) {
+        dragging = false;
+        splitter.classList.remove('dragging');
+      }
+    };
+    splitter.addEventListener('pointerup', stopDrag);
+    splitter.addEventListener('pointercancel', stopDrag);
+
+    // Double-click to reset to 50/50
+    splitter.addEventListener('dblclick', () => {
+      mainEl.style.gridTemplateColumns = '';
+      mainEl.style.gridTemplateRows = '';
+      editor.refresh();
+    });
   }
 
   // ---- Renderer ----
@@ -297,7 +478,7 @@
     commitCtx.moveTo(screenX(fromX), screenY(fromY));
     commitCtx.lineTo(screenX(toX), screenY(toY));
     commitCtx.strokeStyle = colorToCSS(r, g, b, a);
-    commitCtx.lineWidth = width;
+    commitCtx.lineWidth = width * viewScale;
     commitCtx.lineCap = 'round';
     commitCtx.stroke();
   }
@@ -320,16 +501,26 @@
     commitCtx.restore();
   }
 
-  function fullRedrawCommitted(coreGetSegCount, coreGetSeg) {
+  function fullRedrawCommitted() {
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
     renderedSegmentCount = 0;
     renderedFillCount = 0;
 
-    const count = coreGetSegCount();
+    // Redraw fills first (they render behind segments)
+    const fillCount = coreGetFillCount();
+    for (let i = 1; i <= fillCount; i++) {
+      const fill = coreGetFill(i);
+      if (fill != null) {
+        drawFill(fill.vertices, fill.color);
+      }
+    }
+    renderedFillCount = fillCount;
+
+    const count = coreGetSegmentCount();
     for (let i = 1; i <= count; i++) {
-      const seg = coreGetSeg(i);
+      const seg = coreGetSegment(i);
       if (seg != null) {
         drawSegmentOnCommit(seg[0], seg[1], seg[2], seg[3],
                             seg[4], seg[5], seg[6], seg[7], seg[8]);
@@ -338,10 +529,10 @@
     renderedSegmentCount = count;
   }
 
-  function renderIncrementalSegments(coreGetSegCount, coreGetSeg) {
-    const count = coreGetSegCount();
+  function renderIncrementalSegments() {
+    const count = coreGetSegmentCount();
     for (let i = renderedSegmentCount + 1; i <= count; i++) {
-      const seg = coreGetSeg(i);
+      const seg = coreGetSegment(i);
       if (seg != null) {
         drawSegmentOnCommit(seg[0], seg[1], seg[2], seg[3],
                             seg[4], seg[5], seg[6], seg[7], seg[8]);
@@ -350,7 +541,7 @@
     renderedSegmentCount = count;
   }
 
-  function renderIncrementalFills(coreGetFillCount, coreGetFill) {
+  function renderIncrementalFills() {
     const count = coreGetFillCount();
     for (let i = renderedFillCount + 1; i <= count; i++) {
       const fill = coreGetFill(i);
@@ -381,7 +572,7 @@
       ctx.lineTo(screenX(previewLine[2]), screenY(previewLine[3]));
       ctx.strokeStyle = colorToCSS(previewLine[4], previewLine[5],
                                    previewLine[6], previewLine[7]);
-      ctx.lineWidth = previewLine[8];
+      ctx.lineWidth = previewLine[8] * viewScale;
       ctx.lineCap = 'round';
       ctx.stroke();
     }
@@ -394,7 +585,7 @@
     ctx.save();
     ctx.translate(sx, sy);
     ctx.rotate(screenAngle);
-    const s = 10;
+    const s = 10 * viewScale;
     ctx.beginPath();
     ctx.moveTo(s, 0);
     ctx.lineTo(-s * 0.6, s * 0.6);
@@ -585,11 +776,11 @@
 
     try {
       if (needsFullRedraw) {
-        fullRedrawCommitted(coreGetSegmentCount, coreGetSegment);
+        fullRedrawCommitted();
         needsFullRedraw = false;
       } else {
-        renderIncrementalFills(coreGetFillCount, coreGetFill);
-        renderIncrementalSegments(coreGetSegmentCount, coreGetSegment);
+        renderIncrementalFills();
+        renderIncrementalSegments();
       }
 
       const state = coreGetTurtleState();
