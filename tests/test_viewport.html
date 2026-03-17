@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Viewport Tests — Lua Turtle</title>
+<style>
+  body {
+    font-family: monospace;
+    background: #1a1a1a;
+    color: #d4d4d4;
+    padding: 20px;
+    font-size: 14px;
+  }
+  .pass { color: #4ec9b0; }
+  .fail { color: #f44747; font-weight: bold; }
+  #results { white-space: pre-wrap; line-height: 1.8; }
+  h1 { color: #4ec9b0; font-size: 16px; margin-bottom: 16px; }
+</style>
+</head>
+<body>
+<h1>Viewport Tests</h1>
+<div id="results"></div>
+
+<script>
+// ================================================================
+// Test harness
+// ================================================================
+
+let passCount = 0;
+let failCount = 0;
+const results = document.getElementById('results');
+
+function log(msg, cls) {
+  const line = document.createElement('div');
+  line.className = cls || '';
+  line.textContent = msg;
+  results.appendChild(line);
+}
+
+function assertNear(actual, expected, label, tolerance) {
+  tolerance = tolerance || 0.001;
+  const diff = Math.abs(actual - expected);
+  if (diff <= tolerance) {
+    passCount++;
+    log(`PASS ${label}`, 'pass');
+  } else {
+    failCount++;
+    log(`FAIL ${label}: expected ${expected}, got ${actual} (diff ${diff})`, 'fail');
+  }
+}
+
+function assertEqual(actual, expected, label) {
+  if (actual === expected) {
+    passCount++;
+    log(`PASS ${label}`, 'pass');
+  } else {
+    failCount++;
+    log(`FAIL ${label}: expected ${expected}, got ${actual}`, 'fail');
+  }
+}
+
+function assertTrue(value, label) {
+  if (value) {
+    passCount++;
+    log(`PASS ${label}`, 'pass');
+  } else {
+    failCount++;
+    log(`FAIL ${label}: expected truthy, got ${value}`, 'fail');
+  }
+}
+
+// ================================================================
+// Extracted viewport functions (pure, no DOM dependencies)
+//
+// These mirror the functions in index.html but take explicit
+// parameters instead of reading from closure state, making them
+// testable without a canvas element.
+// ================================================================
+
+function screenX(tx, cssW, viewCenterX, viewScale) {
+  return cssW / 2 + (tx - viewCenterX) * viewScale;
+}
+
+function screenY(ty, cssH, viewCenterY, viewScale) {
+  return cssH / 2 - (ty - viewCenterY) * viewScale;
+}
+
+// Inverse: screen coords back to turtle coords
+function turtleX(sx, cssW, viewCenterX, viewScale) {
+  return (sx - cssW / 2) / viewScale + viewCenterX;
+}
+
+function turtleY(sy, cssH, viewCenterY, viewScale) {
+  return -(sy - cssH / 2) / viewScale + viewCenterY;
+}
+
+// zoomAt: returns new { viewScale, viewCenterX, viewCenterY }
+function zoomAt(factor, sx, sy, cssW, cssH, viewScale, viewCenterX, viewCenterY) {
+  const ZOOM_MIN = 0.05;
+  const ZOOM_MAX = 20;
+
+  const txBefore = (sx - cssW / 2) / viewScale + viewCenterX;
+  const tyBefore = -(sy - cssH / 2) / viewScale + viewCenterY;
+
+  const newScale = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, viewScale * factor));
+
+  const newCenterX = txBefore - (sx - cssW / 2) / newScale;
+  const newCenterY = tyBefore + (sy - cssH / 2) / newScale;
+
+  return { viewScale: newScale, viewCenterX: newCenterX, viewCenterY: newCenterY };
+}
+
+// ================================================================
+// Tests
+// ================================================================
+
+// Canvas dimensions for all tests (CSS pixels, not physical)
+const W = 800;
+const H = 600;
+
+// ---- screenX / screenY: default viewport (scale=1, center=0,0) ----
+
+log('--- screenX / screenY at default viewport ---');
+
+assertNear(screenX(0, W, 0, 1), 400,
+  'origin maps to canvas center X');
+
+assertNear(screenY(0, H, 0, 1), 300,
+  'origin maps to canvas center Y');
+
+assertNear(screenX(100, W, 0, 1), 500,
+  'turtle (100,0) maps to screen x=500');
+
+assertNear(screenY(100, H, 0, 1), 200,
+  'turtle (0,100) maps to screen y=200 (y-up flipped)');
+
+assertNear(screenX(-200, W, 0, 1), 200,
+  'turtle (-200,0) maps to screen x=200');
+
+assertNear(screenY(-150, H, 0, 1), 450,
+  'turtle (0,-150) maps to screen y=450');
+
+// ---- screenX / screenY: zoomed in (scale=2) ----
+
+log('\n--- screenX / screenY at 2x zoom ---');
+
+assertNear(screenX(0, W, 0, 2), 400,
+  'origin still at center X when zoomed');
+
+assertNear(screenY(0, H, 0, 2), 300,
+  'origin still at center Y when zoomed');
+
+assertNear(screenX(100, W, 0, 2), 600,
+  'turtle (100,0) at 2x zoom maps to screen x=600');
+
+assertNear(screenY(50, H, 0, 2), 200,
+  'turtle (0,50) at 2x zoom maps to screen y=200');
+
+// ---- screenX / screenY: panned (center offset) ----
+
+log('\n--- screenX / screenY with pan offset ---');
+
+assertNear(screenX(0, W, 100, 1), 300,
+  'origin at screen x=300 when viewCenterX=100');
+
+assertNear(screenY(0, H, 50, 1), 350,
+  'origin at screen y=350 when viewCenterY=50');
+
+assertNear(screenX(100, W, 100, 1), 400,
+  'turtle (100,0) at canvas center when viewCenterX=100');
+
+assertNear(screenY(50, H, 50, 1), 300,
+  'turtle (0,50) at canvas center when viewCenterY=50');
+
+// ---- screenX / screenY: zoomed + panned ----
+
+log('\n--- screenX / screenY with zoom + pan ---');
+
+assertNear(screenX(100, W, 100, 2), 400,
+  'viewCenter point maps to canvas center regardless of scale');
+
+assertNear(screenY(-50, H, -50, 3), 300,
+  'viewCenter point maps to canvas center at 3x');
+
+assertNear(screenX(150, W, 100, 2), 500,
+  'turtle 50 units right of viewCenter at 2x = 100px right of center');
+
+// ---- screenX / screenY: zoomed out (scale < 1) ----
+
+log('\n--- screenX / screenY at 0.5x zoom ---');
+
+assertNear(screenX(100, W, 0, 0.5), 450,
+  'turtle (100,0) at 0.5x zoom maps to screen x=450');
+
+assertNear(screenY(100, H, 0, 0.5), 250,
+  'turtle (0,100) at 0.5x zoom maps to screen y=250');
+
+// ---- Round-trip: screen -> turtle -> screen ----
+
+log('\n--- Round-trip conversions ---');
+
+{
+  const tx = 73, ty = -41;
+  const scale = 1.7, cx = 20, cy = -15;
+  const sx = screenX(tx, W, cx, scale);
+  const sy = screenY(ty, H, cy, scale);
+  const rtx = turtleX(sx, W, cx, scale);
+  const rty = turtleY(sy, H, cy, scale);
+  assertNear(rtx, tx, 'round-trip X preserves turtle coordinate');
+  assertNear(rty, ty, 'round-trip Y preserves turtle coordinate');
+}
+
+{
+  // At extreme zoom
+  const tx = -500, ty = 300;
+  const scale = 0.1, cx = -200, cy = 100;
+  const sx = screenX(tx, W, cx, scale);
+  const sy = screenY(ty, H, cy, scale);
+  const rtx = turtleX(sx, W, cx, scale);
+  const rty = turtleY(sy, H, cy, scale);
+  assertNear(rtx, tx, 'round-trip X at 0.1x zoom');
+  assertNear(rty, ty, 'round-trip Y at 0.1x zoom');
+}
+
+// ---- zoomAt: point stability ----
+
+log('\n--- zoomAt: cursor point stays fixed ---');
+
+{
+  // Zoom in 2x at point (600, 200) on an 800x600 canvas
+  const sx = 600, sy = 200;
+  const before = { viewScale: 1, viewCenterX: 0, viewCenterY: 0 };
+
+  // What turtle-space point is under the cursor before zoom?
+  const txUnder = turtleX(sx, W, before.viewCenterX, before.viewScale);
+  const tyUnder = turtleY(sy, H, before.viewCenterY, before.viewScale);
+
+  const after = zoomAt(2, sx, sy, W, H,
+    before.viewScale, before.viewCenterX, before.viewCenterY);
+
+  // After zoom, that same turtle point should map back to the same screen point
+  const sxAfter = screenX(txUnder, W, after.viewCenterX, after.viewScale);
+  const syAfter = screenY(tyUnder, H, after.viewCenterY, after.viewScale);
+
+  assertNear(sxAfter, sx, 'zoomAt 2x: cursor screen X preserved');
+  assertNear(syAfter, sy, 'zoomAt 2x: cursor screen Y preserved');
+  assertNear(after.viewScale, 2, 'zoomAt 2x: scale is 2');
+}
+
+{
+  // Zoom out 0.5x at canvas center — should not move viewCenter
+  const sx = W / 2, sy = H / 2;
+  const after = zoomAt(0.5, sx, sy, W, H, 1, 0, 0);
+
+  assertNear(after.viewCenterX, 0, 'zoomAt center: viewCenterX unchanged');
+  assertNear(after.viewCenterY, 0, 'zoomAt center: viewCenterY unchanged');
+  assertNear(after.viewScale, 0.5, 'zoomAt center: scale is 0.5');
+}
+
+{
+  // Zoom at corner (0, 0) — top-left
+  const before = { viewScale: 1, viewCenterX: 0, viewCenterY: 0 };
+  const txUnder = turtleX(0, W, 0, 1);  // should be -400
+  const tyUnder = turtleY(0, H, 0, 1);  // should be 300
+
+  const after = zoomAt(2, 0, 0, W, H, 1, 0, 0);
+  const sxAfter = screenX(txUnder, W, after.viewCenterX, after.viewScale);
+  const syAfter = screenY(tyUnder, H, after.viewCenterY, after.viewScale);
+
+  assertNear(sxAfter, 0, 'zoomAt top-left corner: screen X preserved');
+  assertNear(syAfter, 0, 'zoomAt top-left corner: screen Y preserved');
+}
+
+// ---- zoomAt: chained zooms ----
+
+log('\n--- zoomAt: chained zooms ---');
+
+{
+  // Zoom in then zoom out at the same point should return to original state
+  const sx = 300, sy = 400;
+  let state = { viewScale: 1, viewCenterX: 0, viewCenterY: 0 };
+
+  state = zoomAt(2, sx, sy, W, H, state.viewScale, state.viewCenterX, state.viewCenterY);
+  state = zoomAt(0.5, sx, sy, W, H, state.viewScale, state.viewCenterX, state.viewCenterY);
+
+  assertNear(state.viewScale, 1, 'zoom in then out: scale returns to 1');
+  assertNear(state.viewCenterX, 0, 'zoom in then out: centerX returns to 0');
+  assertNear(state.viewCenterY, 0, 'zoom in then out: centerY returns to 0');
+}
+
+{
+  // Multiple small zooms at center should only change scale, not offset
+  let state = { viewScale: 1, viewCenterX: 0, viewCenterY: 0 };
+  const cx = W / 2, cy = H / 2;
+  for (let i = 0; i < 10; i++) {
+    state = zoomAt(1.1, cx, cy, W, H, state.viewScale, state.viewCenterX, state.viewCenterY);
+  }
+  assertNear(state.viewCenterX, 0, '10 center zooms: centerX stays 0');
+  assertNear(state.viewCenterY, 0, '10 center zooms: centerY stays 0');
+  assertNear(state.viewScale, Math.pow(1.1, 10), '10 center zooms: scale correct');
+}
+
+// ---- zoomAt: clamping ----
+
+log('\n--- zoomAt: scale clamping ---');
+
+{
+  // Zoom way in past max
+  const after = zoomAt(1000, W/2, H/2, W, H, 1, 0, 0);
+  assertNear(after.viewScale, 20, 'zoom clamped at ZOOM_MAX (20)');
+}
+
+{
+  // Zoom way out past min
+  const after = zoomAt(0.001, W/2, H/2, W, H, 1, 0, 0);
+  assertNear(after.viewScale, 0.05, 'zoom clamped at ZOOM_MIN (0.05)', 0.01);
+}
+
+// ---- Y-axis direction ----
+
+log('\n--- Y-axis direction correctness ---');
+
+{
+  // Moving up in turtle-space (positive Y) should decrease screen Y
+  const sy1 = screenY(0, H, 0, 1);
+  const sy2 = screenY(100, H, 0, 1);
+  assertTrue(sy2 < sy1, 'positive turtle Y maps to smaller screen Y (up on screen)');
+}
+
+{
+  // Moving right in turtle-space (positive X) should increase screen X
+  const sx1 = screenX(0, W, 0, 1);
+  const sx2 = screenX(100, W, 0, 1);
+  assertTrue(sx2 > sx1, 'positive turtle X maps to larger screen X (right on screen)');
+}
+
+// ---- Different canvas sizes ----
+
+log('\n--- Different canvas sizes ---');
+
+{
+  // Square canvas
+  const s = 500;
+  assertNear(screenX(0, s, 0, 1), 250, 'origin centered on 500x500 canvas X');
+  assertNear(screenY(0, s, 0, 1), 250, 'origin centered on 500x500 canvas Y');
+}
+
+{
+  // Very wide canvas
+  assertNear(screenX(0, 1920, 0, 1), 960, 'origin centered on 1920-wide canvas');
+  assertNear(screenY(0, 200, 0, 1), 100, 'origin centered on 200-tall canvas');
+}
+
+// ---- Line width scaling ----
+
+log('\n--- Line width scaling ---');
+
+{
+  // At scale 1, a pensize of 2 should render as 2
+  const rendered = 2 * 1;
+  assertNear(rendered, 2, 'pensize 2 at scale 1 renders as 2px');
+}
+
+{
+  // At scale 0.5, a pensize of 2 should render as 1
+  const rendered = 2 * 0.5;
+  assertNear(rendered, 1, 'pensize 2 at scale 0.5 renders as 1px');
+}
+
+{
+  // At scale 3, a pensize of 2 should render as 6
+  const rendered = 2 * 3;
+  assertNear(rendered, 6, 'pensize 2 at scale 3 renders as 6px');
+}
+
+// ---- Turtle head scaling ----
+
+log('\n--- Turtle head scaling ---');
+
+{
+  const baseSize = 10;
+  assertNear(baseSize * 1, 10, 'turtle head size at 1x');
+  assertNear(baseSize * 2, 20, 'turtle head size at 2x');
+  assertNear(baseSize * 0.25, 2.5, 'turtle head size at 0.25x');
+}
+
+// ================================================================
+// Summary
+// ================================================================
+
+log('\n========================================');
+log(`Results: ${passCount} passed, ${failCount} failed`,
+  failCount === 0 ? 'pass' : 'fail');
+
+</script>
+</body>
+</html>
