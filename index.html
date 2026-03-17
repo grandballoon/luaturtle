@@ -120,11 +120,40 @@
     position: relative;
     z-index: 10;
     transition: background 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   #splitter:hover,
   #splitter.dragging {
     background: var(--accent-dim);
+  }
+
+  #splitter-grip {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    opacity: 0.4;
+    transition: opacity 0.15s ease;
+  }
+
+  #splitter:hover #splitter-grip,
+  #splitter.dragging #splitter-grip {
+    opacity: 1;
+  }
+
+  #splitter-grip span {
+    display: block;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+
+  #splitter:hover #splitter-grip span,
+  #splitter.dragging #splitter-grip span {
+    background: var(--accent);
   }
 
   .CodeMirror {
@@ -208,6 +237,10 @@
       cursor: row-resize;
     }
 
+    #splitter-grip {
+      flex-direction: row;
+    }
+
     #editor-panel {
       border-bottom: none;
       min-width: unset;
@@ -245,7 +278,13 @@
       <textarea id="editor-textarea"></textarea>
       <div id="status-bar">Loading...</div>
     </div>
-    <div id="splitter"></div>
+    <div id="splitter" title="Drag to resize">
+      <div id="splitter-grip">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
     <div id="canvas-panel">
       <div id="canvas-toolbar">
         <button id="btn-zoom-in" title="Zoom in">+</button>
@@ -383,10 +422,16 @@
 
   let needsFullRedraw = true;
 
+  // Track whether the splitter is being dragged so we can suppress
+  // canvas resize during the drag (avoids black flash).
+  let splitterDragging = false;
+
   // ResizeObserver: fires on any panel size change (window resize,
   // splitter drag, orientation change, devtools open, etc.)
   const canvasPanel = document.getElementById('canvas-panel');
-  new ResizeObserver(() => resizeCanvas()).observe(canvasPanel);
+  new ResizeObserver(() => {
+    if (!splitterDragging) resizeCanvas();
+  }).observe(canvasPanel);
   resizeCanvas();
 
   // ---- Coordinate transforms (viewport-aware) ----
@@ -412,28 +457,25 @@
   {
     const mainEl = document.getElementById('main');
     const splitter = document.getElementById('splitter');
-    let dragging = false;
 
     splitter.addEventListener('pointerdown', (e) => {
       e.preventDefault();
-      dragging = true;
+      splitterDragging = true;
       splitter.classList.add('dragging');
       splitter.setPointerCapture(e.pointerId);
     });
 
     splitter.addEventListener('pointermove', (e) => {
-      if (!dragging) return;
+      if (!splitterDragging) return;
       const rect = mainEl.getBoundingClientRect();
       const isMobile = window.matchMedia('(max-width: 768px)').matches;
 
       if (isMobile) {
-        // Vertical split: drag changes row sizes
         const y = e.clientY - rect.top;
         const total = rect.height;
         const pct = Math.max(10, Math.min(90, (y / total) * 100));
         mainEl.style.gridTemplateRows = `${pct}% 6px 1fr`;
       } else {
-        // Horizontal split: drag changes column sizes
         const x = e.clientX - rect.left;
         const total = rect.width;
         const pct = Math.max(10, Math.min(90, (x / total) * 100));
@@ -444,9 +486,11 @@
     });
 
     const stopDrag = () => {
-      if (dragging) {
-        dragging = false;
+      if (splitterDragging) {
+        splitterDragging = false;
         splitter.classList.remove('dragging');
+        // Now that the drag is done, resize the canvas properly
+        resizeCanvas();
       }
     };
     splitter.addEventListener('pointerup', stopDrag);
