@@ -321,7 +321,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
-  const editor = CodeMirror.fromTextArea(textarea, {
+ const editor = CodeMirror.fromTextArea(textarea, {
     mode: 'lua',
     theme: 'tomorrow-night-eighties',
     lineNumbers: true,
@@ -329,7 +329,9 @@
     tabSize: 4,
     indentWithTabs: false,
     lineWrapping: false,
-  });
+    smartIndent: false,
+});
+
 
   const statusBar = document.getElementById('status-bar');
 
@@ -879,6 +881,8 @@
   editor.setOption('extraKeys', {
     'Ctrl-Enter': () => document.getElementById('btn-run').click(),
     'Cmd-Enter': () => document.getElementById('btn-run').click(),
+    'Tab': (cm) => cm.execCommand('insertSoftTab'),
+    'Shift-Tab': (cm) => cm.execCommand('indentLess'),
   });
 
   // ---- Start ----
