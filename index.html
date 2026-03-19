@@ -260,6 +260,78 @@
       padding: 8px 16px;
     }
   }
+  /* API reference overlay */
+  #api-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(18, 18, 18, 0.95);
+    z-index: 20;
+    overflow-y: auto;
+    padding: 20px 24px;
+    display: none;
+  }
+
+  #api-overlay.visible {
+    display: block;
+  }
+
+  #api-overlay h2 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    margin: 18px 0 8px 0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  #api-overlay h2:first-child {
+    margin-top: 0;
+  }
+
+  #api-overlay table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 4px;
+  }
+
+  #api-overlay td {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    padding: 3px 0;
+    vertical-align: top;
+  }
+
+  #api-overlay td:first-child {
+    color: var(--accent);
+    white-space: nowrap;
+    padding-right: 16px;
+    width: 1%;
+  }
+
+  #api-overlay td:last-child {
+    color: var(--text-muted);
+  }
+
+  #api-close {
+    position: sticky;
+    top: 0;
+    float: right;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+  }
+
+  #api-close:hover {
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
@@ -268,6 +340,7 @@
   <header>
     <h1>LUA TURTLE</h1>
     <div class="header-controls">
+      <button id="btn-api">Commands</button>
       <button id="btn-stop">Stop</button>
       <button id="btn-run" class="primary">Run &#9654;</button>
     </div>
@@ -293,6 +366,52 @@
         <span id="zoom-label">100%</span>
       </div>
       <canvas id="turtle-canvas"></canvas>
+      <div id="api-overlay">
+        <button id="api-close">&times;</button>
+        <h2>Movement</h2>
+        <table>
+          <tr><td>forward(n)</td><td>Move forward n pixels. Alias: fd</td></tr>
+          <tr><td>back(n)</td><td>Move backward n pixels. Alias: bk</td></tr>
+          <tr><td>left(degrees)</td><td>Turn left. Alias: lt</td></tr>
+          <tr><td>right(degrees)</td><td>Turn right. Alias: rt</td></tr>
+          <tr><td>setpos(x, y)</td><td>Move to coordinates (x, y)</td></tr>
+          <tr><td>setheading(angle)</td><td>Face a direction (0=east, 90=north). Alias: seth</td></tr>
+          <tr><td>home()</td><td>Return to center, face east</td></tr>
+        </table>
+        <h2>Pen</h2>
+        <table>
+          <tr><td>penup()</td><td>Stop drawing. Alias: pu</td></tr>
+          <tr><td>pendown()</td><td>Start drawing. Alias: pd</td></tr>
+          <tr><td>pensize(n)</td><td>Set line width</td></tr>
+          <tr><td>pencolor(r, g, b)</td><td>Set color with RGB (0–1 or 0–255)</td></tr>
+          <tr><td>pencolor("name")</td><td>Set color by name: "red", "blue", "gold", etc.</td></tr>
+        </table>
+        <h2>Shapes</h2>
+        <table>
+          <tr><td>circle(radius)</td><td>Draw a full circle</td></tr>
+          <tr><td>circle(radius, extent)</td><td>Fraction of a circle: 1/4, 1/2, etc.</td></tr>
+          <tr><td>arc(radius, degrees)</td><td>Draw an arc of the given degrees</td></tr>
+        </table>
+        <h2>Fill</h2>
+        <table>
+          <tr><td>begin_fill()</td><td>Start recording a filled shape</td></tr>
+          <tr><td>end_fill()</td><td>Fill the shape drawn since begin_fill</td></tr>
+          <tr><td>setfillcolor(r, g, b)</td><td>Set fill color (defaults to pen color)</td></tr>
+        </table>
+        <h2>Canvas</h2>
+        <table>
+          <tr><td>bgcolor(r, g, b)</td><td>Set background color</td></tr>
+          <tr><td>clear()</td><td>Erase drawing, keep turtle position</td></tr>
+          <tr><td>reset()</td><td>Erase drawing and reset turtle to start</td></tr>
+          <tr><td>speed(n)</td><td>Animation speed: 0=instant, 1=slow, 10=fast</td></tr>
+        </table>
+        <h2>State Queries</h2>
+        <table>
+          <tr><td>position()</td><td>Returns x, y coordinates</td></tr>
+          <tr><td>heading()</td><td>Returns current angle in degrees</td></tr>
+          <tr><td>isdown()</td><td>Returns true if pen is down</td></tr>
+        </table>
+      </div>
     </div>
   </div>
 </div>
@@ -883,6 +1002,16 @@
     'Cmd-Enter': () => document.getElementById('btn-run').click(),
     'Tab': (cm) => cm.execCommand('insertSoftTab'),
     'Shift-Tab': (cm) => cm.execCommand('indentLess'),
+  });
+
+  // ---- API overlay toggle ----
+
+  document.getElementById('btn-api').addEventListener('click', () => {
+    document.getElementById('api-overlay').classList.toggle('visible');
+  });
+
+  document.getElementById('api-close').addEventListener('click', () => {
+    document.getElementById('api-overlay').classList.remove('visible');
   });
 
   // ---- Start ----
