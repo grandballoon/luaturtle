@@ -788,7 +788,23 @@
         if not chunk then
           error("Syntax error: " .. tostring(err))
         end
-        chunk()
+
+        local instruction_limit = 1000000
+        local instruction_count = 0
+        debug.sethook(function()
+          instruction_count = instruction_count + 1000
+          if instruction_count >= instruction_limit then
+            debug.sethook()
+            error("Program too long — possible infinite loop (exceeded " .. instruction_limit .. " instructions)", 2)
+          end
+        end, "", 1000)
+
+        local ok, run_err = pcall(chunk)
+        debug.sethook()
+
+        if not ok then
+          error(run_err, 0)
+        end
       `);
 
       setStatus('Running');
