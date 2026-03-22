@@ -42,10 +42,10 @@ It supports: movement (`forward`, `back`, `left`, `right` + aliases), pen contro
 
 These must pass before deploying v0.1:
 
-- [ ] Verify standard programs: square, star, spiral, recursive tree
-- [ ] Edge cases: `speed(0)` instant mode, negative distances, large queues
-- [ ] Mobile layout spot-check (responsive CSS exists — verify it doesn't break)
-- [ ] Graceful failure if Wasmoon CDN is unreachable
+- [x] Verify standard programs: square, star, spiral, recursive tree
+- [x] Edge cases: `speed(0)` instant mode, negative distances, large queues
+- [x] Mobile layout spot-check (responsive CSS exists — verify it doesn't break)
+- [x] Graceful failure if Wasmoon CDN is unreachable
 
 ---
 
@@ -53,20 +53,20 @@ These must pass before deploying v0.1:
 
 Sequenced by learner value. Each item unlocks new categories of geometric exploration.
 
-1. **`circle(radius)` / `circle(radius, extent)` / `arc(radius, degrees)`**
+1. - [x] **`circle(radius)` / `circle(radius, extent)` / `arc(radius, degrees)`**
    - `extent` is a fraction (1/4, 1/2, etc.); `circle(r, extent)` = `arc(r, extent * 360)`
    - Dissolves into turn+move primitives at execution time (same pattern as `setpos`)
    - N segments ≈ `max(1, abs(degrees) / 6)` — ~60 segments for a full circle
    - Chord length per step: `2 * radius * sin(pi / N)`
 
-2. **`begin_fill()` / `end_fill()`**
+2. - [x] **`begin_fill()` / `end_fill()`**
    - Collects vertices between begin/end, fills the polygon on end_fill
    - Opens up colored geometric art, tessellations, fractals with fills
 
 3. **`write(text, font, size)`**
    - Enables labeling, coordinate display, instructional programs
 
-4. **Named colors** — `pencolor("red")`, `pencolor("blue")`, etc.
+4. - [x] **Named colors** — `pencolor("red")`, `pencolor("blue")`, etc.
    - Quality-of-life; lowers the barrier vs. RGB values
 
 5. **`print()` output visibility**
