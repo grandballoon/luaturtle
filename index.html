@@ -643,6 +643,7 @@
 
   let renderedSegmentCount = 0;
   let renderedFillCount = 0;
+  let renderedTextCount = 0;
 
   function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
     commitCtx.beginPath();
@@ -909,7 +910,6 @@
     renderedSegmentCount = 0;
     renderedFillCount = 0;
     renderedTextCount = 0;
-    let renderedTextCount = 0;
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
