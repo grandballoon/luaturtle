@@ -164,6 +164,8 @@
     height: auto !important;
   }
 
+  .cm-s-tomorrow-night-eighties .cm-turtle-cmd { color: #ffcc66; }
+
   #status-bar {
     padding: 6px 12px;
     font-family: 'IBM Plex Mono', monospace;
@@ -446,6 +448,16 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|write)\b/;
+
+  const turtleOverlay = {
+    token(stream) {
+      if (stream.match(TURTLE_COMMANDS)) return 'turtle-cmd';
+      stream.next();
+      return null;
+    }
+  };
+
  const editor = CodeMirror.fromTextArea(textarea, {
     mode: 'lua',
     theme: 'tomorrow-night-eighties',
@@ -456,6 +468,8 @@
     lineWrapping: false,
     smartIndent: false,
 });
+
+  editor.addOverlay(turtleOverlay);
 
 
   const statusBar = document.getElementById('status-bar');
