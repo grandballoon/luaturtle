@@ -402,6 +402,8 @@
           <tr><td>begin_fill()</td><td>Start recording a filled shape</td></tr>
           <tr><td>end_fill()</td><td>Fill the shape drawn since begin_fill</td></tr>
           <tr><td>setfillcolor(r, g, b)</td><td>Set fill color (defaults to pen color)</td></tr>
+          <tr><td>dot(size)</td><td>Draw a filled circle at turtle's position</td></tr>
+          <tr><td>dot(size, "red")</td><td>Draw a dot with a specific color</td></tr>
         </table>
                <h2>Text</h2>
         <table>
@@ -459,7 +461,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|dot|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -669,6 +671,7 @@
   let renderedSegmentCount = 0;
   let renderedFillCount = 0;
   let renderedTextCount = 0;
+  let renderedDotCount = 0;
 
   function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
     commitCtx.beginPath();
@@ -694,6 +697,19 @@
       commitCtx.lineTo(screenX(vertices[i].x), screenY(vertices[i].y));
     }
     commitCtx.closePath();
+    commitCtx.fill();
+    commitCtx.restore();
+  }
+
+  function drawDot(dot) {
+    const r = dot.color[0], g = dot.color[1], b = dot.color[2], a = dot.color[3];
+    const sx = screenX(dot.x);
+    const sy = screenY(dot.y);
+    const radius = (dot.size / 2) * viewScale;
+    commitCtx.save();
+    commitCtx.fillStyle = colorToCSS(r, g, b, a);
+    commitCtx.beginPath();
+    commitCtx.arc(sx, sy, radius, 0, 2 * Math.PI);
     commitCtx.fill();
     commitCtx.restore();
   }
@@ -726,6 +742,7 @@
     commitCtx.clearRect(0, 0, w, h);
     renderedSegmentCount = 0;
     renderedFillCount = 0;
+    renderedDotCount = 0;
 
     // Redraw fills first (they render behind segments)
     const fillCount = coreGetFillCount();
@@ -755,6 +772,15 @@
       }
     }
     renderedTextCount = textCount;
+
+    const dotCount = coreGetDotCount();
+    for (let i = 1; i <= dotCount; i++) {
+      const dot = coreGetDot(i);
+      if (dot != null) {
+        drawDot(dot);
+      }
+    }
+    renderedDotCount = dotCount;
   }
 
   function renderIncrementalSegments() {
@@ -790,7 +816,17 @@
     }
     renderedTextCount = count;
   }
- 
+
+  function renderIncrementalDots() {
+    const count = coreGetDotCount();
+    for (let i = renderedDotCount + 1; i <= count; i++) {
+      const dot = coreGetDot(i);
+      if (dot != null) {
+        drawDot(dot);
+      }
+    }
+    renderedDotCount = count;
+  }
 
   function renderFrame(state, bgColor, previewLine) {
     const w = canvas.width / (window.devicePixelRatio || 1);
@@ -851,6 +887,8 @@
   let coreGetFill = null;
   let coreGetTextCount = null;
   let coreGetText = null;
+  let coreGetDotCount = null;
+  let coreGetDot = null;
   let coreGetPreviewLine = null;
   let coreIsBusy = null;
   let coreInterrupt = null;
@@ -879,6 +917,8 @@
       _bridge_segment         = function(i) return turtle.get_segment(i) end
       _bridge_fill_count      = function() return turtle.get_fill_count() end
       _bridge_fill            = function(i) return turtle.get_fill(i) end
+      _bridge_dot_count       = function() return turtle.get_dot_count() end
+      _bridge_dot             = function(i) return turtle.get_dot(i) end
       _bridge_text_count      = function() return turtle.get_text_count() end
       _bridge_text            = function(i) return turtle.get_text(i) end
       _bridge_preview_line    = function() return turtle.get_preview_line() end
@@ -895,6 +935,8 @@
     coreGetFill         = lua.global.get('_bridge_fill');
     coreGetTextCount    = lua.global.get('_bridge_text_count');
     coreGetText         = lua.global.get('_bridge_text');
+    coreGetDotCount     = lua.global.get('_bridge_dot_count');
+    coreGetDot          = lua.global.get('_bridge_dot');
     coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
     coreIsBusy          = lua.global.get('_bridge_is_busy');
     coreInterrupt       = lua.global.get('_bridge_interrupt');
@@ -936,6 +978,7 @@
     renderedSegmentCount = 0;
     renderedFillCount = 0;
     renderedTextCount = 0;
+    renderedDotCount = 0;
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
@@ -998,6 +1041,7 @@
           setfillcolor = function(...) return turtle.setfillcolor(...) end,
           begin_fill   = function(...) return turtle.begin_fill(...)   end,
           end_fill     = function(...) return turtle.end_fill(...)     end,
+          dot          = function(...) return turtle.dot(...)          end,
           text         = function(...) return turtle.text(...)         end,
         }
 
@@ -1054,7 +1098,8 @@
     try {
       if (coreGetSegmentCount() < renderedSegmentCount ||
           coreGetFillCount()    < renderedFillCount    ||
-          coreGetTextCount()    < renderedTextCount) {
+          coreGetTextCount()    < renderedTextCount    ||
+          coreGetDotCount()     < renderedDotCount) {
         needsFullRedraw = true;
       }
 
@@ -1065,6 +1110,7 @@
         renderIncrementalFills();
         renderIncrementalSegments();
         renderIncrementalTexts();
+        renderIncrementalDots();
       }
 
       const state = coreGetTurtleState();

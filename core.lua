@@ -46,6 +46,9 @@ function Core.new(renderer)
         -- committed texts (append-only log)
         texts = {},
 
+        -- committed dots (append-only log)
+        dots = {},
+
         -- turtle visibility
         visible = true,
 
@@ -276,6 +279,19 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "end_fill"})
     end
 
+    -- Dot
+
+    -- color args are optional; omitting them uses the pen color at execution time.
+    -- Accepts the same color forms as pencolor: dot(10), dot(10,"red"), dot(10,r,g,b).
+    function self.dot(size, r, g, b, a)
+        local c = (r ~= nil) and resolve_color(r, g, b, a) or nil
+        table.insert(self.actions, {
+            type  = "dot",
+            size  = size or 2 * self.pen_size,
+            color = c,
+        })
+    end
+
     -- Text
 
     function self.text(text, font, size, align)
@@ -442,10 +458,23 @@ function Core.new(renderer)
                     },
                 })
 
+            elseif next_action.type == "dot" then
+                local color = next_action.color or {
+                    self.pen_color[1], self.pen_color[2],
+                    self.pen_color[3], self.pen_color[4],
+                }
+                table.insert(self.dots, {
+                    x     = self.x,
+                    y     = self.y,
+                    size  = next_action.size,
+                    color = color,
+                })
+
             elseif next_action.type == "clear" then
                 self.segments = {}
                 self.fills = {}
                 self.texts = {}
+                self.dots = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.current = nil
@@ -465,6 +494,7 @@ function Core.new(renderer)
                 self.segments = {}
                 self.fills = {}
                 self.texts = {}
+                self.dots = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.fill_color = nil
@@ -670,6 +700,18 @@ function Core.new(renderer)
     -- Returns nil if index is out of range.
     function self.get_text(i)
         return self.texts[i]
+    end
+
+    -- Returns: total number of committed dots
+    function self.get_dot_count()
+        return #self.dots
+    end
+
+    -- Returns one dot by 1-based index as a named table:
+    -- { x, y, size, color = {r,g,b,a} }
+    -- Returns nil if index is out of range.
+    function self.get_dot(i)
+        return self.dots[i]
     end
 
     -- Returns preview line as a flat array, same shape as a segment.
