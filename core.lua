@@ -46,6 +46,9 @@ function Core.new(renderer)
         -- committed texts (append-only log)
         texts = {},
 
+        -- turtle visibility
+        visible = true,
+
         -- renderer (injected)
         renderer = renderer,
     }
@@ -327,6 +330,18 @@ function Core.new(renderer)
         return self.fill_active
     end
 
+    function self.isvisible()
+        return self.visible
+    end
+
+    function self.hideturtle()
+        table.insert(self.actions, {type = "hideturtle"})
+    end
+
+    function self.showturtle()
+        table.insert(self.actions, {type = "showturtle"})
+    end
+
     function self.xcor()
         return self.x
     end
@@ -376,6 +391,12 @@ function Core.new(renderer)
 
             elseif next_action.type == "pendown" then
                 self.pen_down = true
+
+            elseif next_action.type == "hideturtle" then
+                self.visible = false
+
+            elseif next_action.type == "showturtle" then
+                self.visible = true
 
             elseif next_action.type == "pensize" then
                 self.pen_size = next_action.size
@@ -602,6 +623,7 @@ function Core.new(renderer)
             pen_b = self.pen_color[3],
             pen_a = self.pen_color[4],
             pen_size = self.pen_size,
+            visible = self.visible,
         }
     end
 

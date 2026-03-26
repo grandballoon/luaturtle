@@ -424,6 +424,9 @@
           <tr><td>heading()</td><td>Returns current angle in degrees</td></tr>
           <tr><td>isdown()</td><td>Returns true if pen is down</td></tr>
           <tr><td>filling()</td><td>Returns true if currently filling</td></tr>
+          <tr><td>isvisible()</td><td>Returns true if turtle is visible</td></tr>
+          <tr><td>hideturtle()</td><td>Hide the turtle</td></tr>
+          <tr><td>showturtle()</td><td>Show the turtle</td></tr>
           <tr><td>distance(x, y)</td><td>Returns distance to point</td></tr>
           <tr><td>towards(x, y)</td><td>Returns angle towards point</td></tr>
         </table>
@@ -456,7 +459,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -815,23 +818,24 @@
     }
 
     // Turtle head
-    const sx = screenX(state.x);
-    const sy = screenY(state.y);
-    const screenAngle = -state.angle * Math.PI / 180;
+    if (state.visible) {
+      const sx = screenX(state.x);
+      const sy = screenY(state.y);
+      const screenAngle = -state.angle * Math.PI / 180;
 
-    ctx.save();
-    ctx.translate(sx, sy);
-    ctx.rotate(screenAngle);
-    const s = 10 * viewScale;
-    ctx.beginPath();
-    ctx.moveTo(s, 0);
-    ctx.lineTo(-s * 0.6, s * 0.6);
-    ctx.lineTo(-s * 0.6, -s * 0.6);
-    ctx.closePath();
-    ctx.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
-    ctx.fill();
-    ctx.restore();
-  }
+      ctx.save();
+      ctx.translate(sx, sy);
+      ctx.rotate(screenAngle);
+      const s = 10 * viewScale;
+      ctx.beginPath();
+      ctx.moveTo(s, 0);
+      ctx.lineTo(-s * 0.6, s * 0.6);
+      ctx.lineTo(-s * 0.6, -s * 0.6);
+      ctx.closePath();
+      ctx.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
+      ctx.fill();
+      ctx.restore();
+    }
 
   // ---- Wasmoon / Lua setup ----
 
@@ -972,8 +976,11 @@
           position = function(...) return turtle.position(...) end,
           heading  = function(...) return turtle.heading(...)  end,
           isdown   = function(...) return turtle.isdown(...)   end,
-          filling  = function(...) return turtle.filling(...)  end,
-          xcor     = function(...) return turtle.xcor(...)     end,
+          filling    = function(...) return turtle.filling(...)    end,
+          isvisible  = function(...) return turtle.isvisible(...)  end,
+          hideturtle = function(...) return turtle.hideturtle(...) end,
+          showturtle = function(...) return turtle.showturtle(...) end,
+          xcor       = function(...) return turtle.xcor(...)       end,
           ycor     = function(...) return turtle.ycor(...)     end,
           distance = function(...) return turtle.distance(...) end,
           towards  = function(...) return turtle.towards(...)  end,
