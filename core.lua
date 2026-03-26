@@ -261,9 +261,9 @@ function Core.new(renderer)
 
     -- Text
 
-    function self.write(text, font, size, align)
+    function self.text(text, font, size, align)
         table.insert(self.actions, {
-            type = "write",
+            type = "text",
             text = tostring(text),
             font = font or "sans-serif",
             size = size or 14,
@@ -373,7 +373,7 @@ function Core.new(renderer)
                 self.fill_active = false
                 self.fill_vertices = {}
 
-            elseif next_action.type == "write" then
+            elseif next_action.type == "text" then
                 table.insert(self.texts, {
                     x = self.x,
                     y = self.y,

@@ -164,6 +164,8 @@
     height: auto !important;
   }
 
+  .cm-s-tomorrow-night-eighties .cm-turtle-cmd { color: #ffcc66; }
+
   #status-bar {
     padding: 6px 12px;
     font-family: 'IBM Plex Mono', monospace;
@@ -400,9 +402,9 @@
         </table>
                <h2>Text</h2>
         <table>
-          <tr><td>write("text")</td><td>Write text at turtle's position</td></tr>
-          <tr><td>write("text", font, size)</td><td>Custom font and size: write("hi", "monospace", 24)</td></tr>
-          <tr><td>write("text", font, size, align)</td><td>Align: "left" (default), "center", or "right"</td></tr>
+          <tr><td>text("hello")</td><td>Write text at turtle's position</td></tr>
+          <tr><td>text("hello", font, size)</td><td>Custom font and size: text("hi", "monospace", 24)</td></tr>
+          <tr><td>text("hello", font, size, align)</td><td>Align: "left" (default), "center", or "right"</td></tr>
         </table>
         <h2>Canvas</h2>
         <table>
@@ -446,6 +448,16 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
+
+  const turtleOverlay = {
+    token(stream) {
+      if (stream.match(TURTLE_COMMANDS)) return 'turtle-cmd';
+      stream.next();
+      return null;
+    }
+  };
+
  const editor = CodeMirror.fromTextArea(textarea, {
     mode: 'lua',
     theme: 'tomorrow-night-eighties',
@@ -456,6 +468,8 @@
     lineWrapping: false,
     smartIndent: false,
 });
+
+  editor.addOverlay(turtleOverlay);
 
 
   const statusBar = document.getElementById('status-bar');
@@ -643,6 +657,7 @@
 
   let renderedSegmentCount = 0;
   let renderedFillCount = 0;
+  let renderedTextCount = 0;
 
   function drawSegmentOnCommit(fromX, fromY, toX, toY, r, g, b, a, width) {
     commitCtx.beginPath();
@@ -909,7 +924,6 @@
     renderedSegmentCount = 0;
     renderedFillCount = 0;
     renderedTextCount = 0;
-    let renderedTextCount = 0;
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
@@ -961,7 +975,7 @@
           setfillcolor = function(...) return turtle.setfillcolor(...) end,
           begin_fill   = function(...) return turtle.begin_fill(...)   end,
           end_fill     = function(...) return turtle.end_fill(...)     end,
-          write        = function(...) return turtle.write(...)        end,
+          text         = function(...) return turtle.text(...)         end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
@@ -1015,6 +1029,12 @@
     }
 
     try {
+      if (coreGetSegmentCount() < renderedSegmentCount ||
+          coreGetFillCount()    < renderedFillCount    ||
+          coreGetTextCount()    < renderedTextCount) {
+        needsFullRedraw = true;
+      }
+
       if (needsFullRedraw) {
         fullRedrawCommitted();
         needsFullRedraw = false;
