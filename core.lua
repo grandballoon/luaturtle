@@ -306,7 +306,7 @@ function Core.new(renderer)
         local c = (r ~= nil) and resolve_color(r, g, b, a) or nil
         table.insert(self.actions, {
             type  = "dot",
-            size  = size or 2 * self.pen_size,
+            size  = size,   -- nil = use 2 * pen_size at execution time
             color = c,
         })
     end
@@ -491,7 +491,7 @@ function Core.new(renderer)
                 table.insert(self.dots, {
                     x     = self.x,
                     y     = self.y,
-                    size  = next_action.size,
+                    size  = next_action.size or 2 * self.pen_size,
                     color = color,
                 })
 
@@ -523,6 +523,7 @@ function Core.new(renderer)
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.fill_color = nil
+                self.visible = true
                 self.current = nil
                 if self.renderer then
                     self.renderer:commit_clear()
