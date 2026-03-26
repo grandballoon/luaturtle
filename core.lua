@@ -211,6 +211,20 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "setpos", tx = tx or 0, ty = ty or 0})
     end
 
+    -- setx/sety dissolve at execution time so they read the live coordinate.
+    function self.setx(x)
+        table.insert(self.actions, {type = "setx", x = x or 0})
+    end
+
+    function self.sety(y)
+        table.insert(self.actions, {type = "sety", y = y or 0})
+    end
+
+    -- teleport: instant positional jump, no drawing, no fill vertex.
+    function self.teleport(tx, ty)
+        table.insert(self.actions, {type = "teleport", tx = tx or 0, ty = ty or 0})
+    end
+
     -- Pen control
 
     function self.penup()
@@ -470,6 +484,18 @@ function Core.new(renderer)
                         table.insert(self.actions, 1, {type = "turn", angle = turn})
                     end
                 end
+
+            elseif next_action.type == "setx" then
+                -- Dissolve into setpos using the live y coordinate.
+                table.insert(self.actions, 1, {type = "setpos", tx = next_action.x, ty = self.y})
+
+            elseif next_action.type == "sety" then
+                -- Dissolve into setpos using the live x coordinate.
+                table.insert(self.actions, 1, {type = "setpos", tx = self.x, ty = next_action.y})
+
+            elseif next_action.type == "teleport" then
+                self.x = next_action.tx
+                self.y = next_action.ty
 
             elseif next_action.type == "home" then
                 -- home = go to (0,0), then face 0°.

@@ -379,6 +379,9 @@
           <tr><td>setpos(x, y)</td><td>Move to coordinates (x, y)</td></tr>
           <tr><td>setheading(angle)</td><td>Face a direction (0=east, 90=north). Alias: seth</td></tr>
           <tr><td>home()</td><td>Return to center, face east</td></tr>
+          <tr><td>setx(x)</td><td>Set x coordinate, keep y</td></tr>
+          <tr><td>sety(y)</td><td>Set y coordinate, keep x</td></tr>
+          <tr><td>teleport(x, y)</td><td>Jump to position instantly, no drawing</td></tr>
         </table>
         <h2>Pen</h2>
         <table>
@@ -453,7 +456,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|xcor|ycor|distance|towards|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -979,6 +982,9 @@
           seth         = function(...) return turtle.setheading(...)   end,
           home         = function(...) return turtle.home(...)         end,
           setpos       = function(...) return turtle.setpos(...)       end,
+          setx         = function(...) return turtle.setx(...)         end,
+          sety         = function(...) return turtle.sety(...)         end,
+          teleport     = function(...) return turtle.teleport(...)     end,
           arc          = function(...) return turtle.arc(...)          end,
           circle       = function(...) return turtle.circle(...)       end,
 
