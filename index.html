@@ -398,6 +398,12 @@
           <tr><td>end_fill()</td><td>Fill the shape drawn since begin_fill</td></tr>
           <tr><td>setfillcolor(r, g, b)</td><td>Set fill color (defaults to pen color)</td></tr>
         </table>
+               <h2>Text</h2>
+        <table>
+          <tr><td>write("text")</td><td>Write text at turtle's position</td></tr>
+          <tr><td>write("text", font, size)</td><td>Custom font and size: write("hi", "monospace", 24)</td></tr>
+          <tr><td>write("text", font, size, align)</td><td>Align: "left" (default), "center", or "right"</td></tr>
+        </table>
         <h2>Canvas</h2>
         <table>
           <tr><td>bgcolor(r, g, b)</td><td>Set background color</td></tr>
@@ -666,6 +672,28 @@
     commitCtx.restore();
   }
 
+   function drawText(entry) {
+    // entry is a named-table from Lua — arrives as a JS object
+    // with fields: x, y, text, font, size, align, color
+    const c = entry.color;
+    const r = c[0], g = c[1], b = c[2], a = c[3];
+    const fontSize = entry.size * viewScale;
+    commitCtx.save();
+    commitCtx.font = fontSize + 'px ' + entry.font;
+    commitCtx.fillStyle = colorToCSS(r, g, b, a);
+    commitCtx.textBaseline = 'bottom';
+    if (entry.align === 'center') {
+      commitCtx.textAlign = 'center';
+    } else if (entry.align === 'right') {
+      commitCtx.textAlign = 'right';
+    } else {
+      commitCtx.textAlign = 'left';
+    }
+    commitCtx.fillText(entry.text, screenX(entry.x), screenY(entry.y));
+    commitCtx.restore();
+  }
+ 
+
   function fullRedrawCommitted() {
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
@@ -692,6 +720,15 @@
       }
     }
     renderedSegmentCount = count;
+
+    const textCount = coreGetTextCount();
+    for (let i = 1; i <= textCount; i++) {
+      const txt = coreGetText(i);
+      if (txt != null) {
+        drawText(txt);
+      }
+    }
+    renderedTextCount = textCount;
   }
 
   function renderIncrementalSegments() {
@@ -716,6 +753,18 @@
     }
     renderedFillCount = count;
   }
+
+  function renderIncrementalTexts() {
+    const count = coreGetTextCount();
+    for (let i = renderedTextCount + 1; i <= count; i++) {
+      const txt = coreGetText(i);
+      if (txt != null) {
+        drawText(txt);
+      }
+    }
+    renderedTextCount = count;
+  }
+ 
 
   function renderFrame(state, bgColor, previewLine) {
     const w = canvas.width / (window.devicePixelRatio || 1);
@@ -773,6 +822,8 @@
   let coreGetSegment = null;
   let coreGetFillCount = null;
   let coreGetFill = null;
+  let coreGetTextCount = null;
+  let coreGetText = null;
   let coreGetPreviewLine = null;
   let coreIsBusy = null;
   let coreInterrupt = null;
@@ -801,6 +852,8 @@
       _bridge_segment         = function(i) return turtle.get_segment(i) end
       _bridge_fill_count      = function() return turtle.get_fill_count() end
       _bridge_fill            = function(i) return turtle.get_fill(i) end
+      _bridge_text_count      = function() return turtle.get_text_count() end
+      _bridge_text            = function(i) return turtle.get_text(i) end
       _bridge_preview_line    = function() return turtle.get_preview_line() end
       _bridge_is_busy         = function() return turtle.is_busy() end
       _bridge_interrupt       = function() return turtle.interrupt() end
@@ -813,6 +866,8 @@
     coreGetSegment      = lua.global.get('_bridge_segment');
     coreGetFillCount    = lua.global.get('_bridge_fill_count');
     coreGetFill         = lua.global.get('_bridge_fill');
+    coreGetTextCount    = lua.global.get('_bridge_text_count');
+    coreGetText         = lua.global.get('_bridge_text');
     coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
     coreIsBusy          = lua.global.get('_bridge_is_busy');
     coreInterrupt       = lua.global.get('_bridge_interrupt');
@@ -848,10 +903,13 @@
       turtle.fill_active = false
       turtle.fill_vertices = {}
       turtle.fill_color = nil
+      turtle.texts = {}
     `);
 
     renderedSegmentCount = 0;
     renderedFillCount = 0;
+    renderedTextCount = 0;
+    let renderedTextCount = 0;
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
@@ -903,6 +961,7 @@
           setfillcolor = function(...) return turtle.setfillcolor(...) end,
           begin_fill   = function(...) return turtle.begin_fill(...)   end,
           end_fill     = function(...) return turtle.end_fill(...)     end,
+          write        = function(...) return turtle.write(...)        end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
@@ -962,6 +1021,7 @@
       } else {
         renderIncrementalFills();
         renderIncrementalSegments();
+        renderIncrementalTexts();
       }
 
       const state = coreGetTurtleState();
