@@ -390,6 +390,8 @@
           <tr><td>pensize(n)</td><td>Set line width</td></tr>
           <tr><td>pencolor(r, g, b)</td><td>Set color with RGB (0–1 or 0–255)</td></tr>
           <tr><td>pencolor("name")</td><td>Set color by name: "red", "blue", "gold", etc.</td></tr>
+          <tr><td>color("red")</td><td>Set both pen and fill color</td></tr>
+          <tr><td>color("red", "blue")</td><td>Set pen and fill color independently</td></tr>
         </table>
         <h2>Shapes</h2>
         <table>
@@ -461,7 +463,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|dot|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|color|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|dot|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -1038,6 +1040,7 @@
           arc          = function(...) return turtle.arc(...)          end,
           circle       = function(...) return turtle.circle(...)       end,
 
+          color        = function(...) return turtle.color(...)        end,
           setfillcolor = function(...) return turtle.setfillcolor(...) end,
           begin_fill   = function(...) return turtle.begin_fill(...)   end,
           end_fill     = function(...) return turtle.end_fill(...)     end,

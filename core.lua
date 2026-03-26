@@ -247,6 +247,25 @@ function Core.new(renderer)
         end
     end
 
+    -- color("red") or color(r,g,b) → set both pen and fill to the same color.
+    -- color("red", "blue") → set pen and fill independently.
+    -- Getter omitted: Wasmoon only delivers the first return value reliably.
+    function self.color(r, g, b, a)
+        local pen_c, fill_c
+        if type(r) == "string" and type(g) == "string" then
+            pen_c  = resolve_color(r)
+            fill_c = resolve_color(g)
+        else
+            pen_c  = resolve_color(r, g, b, a)
+            fill_c = pen_c
+        end
+        table.insert(self.actions, {
+            type   = "color",
+            pen_r  = pen_c[1],  pen_g  = pen_c[2],  pen_b  = pen_c[3],  pen_a  = pen_c[4],
+            fill_r = fill_c[1], fill_g = fill_c[2], fill_b = fill_c[3], fill_a = fill_c[4],
+        })
+    end
+
     function self.pencolor(r, g, b, a)
         local c = resolve_color(r, g, b, a)
         table.insert(self.actions, {type = "pencolor", r = c[1], g = c[2], b = c[3], a = c[4]})
@@ -393,6 +412,12 @@ function Core.new(renderer)
                 self.pen_color = normalize_color(
                     next_action.r, next_action.g, next_action.b, next_action.a
                 )
+
+            elseif next_action.type == "color" then
+                self.pen_color  = {next_action.pen_r,  next_action.pen_g,
+                                   next_action.pen_b,  next_action.pen_a}
+                self.fill_color = {next_action.fill_r, next_action.fill_g,
+                                   next_action.fill_b, next_action.fill_a}
 
             elseif next_action.type == "bgcolor" then
                 self.bg_color = normalize_color(
