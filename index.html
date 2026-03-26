@@ -1029,6 +1029,12 @@
     }
 
     try {
+      if (coreGetSegmentCount() < renderedSegmentCount ||
+          coreGetFillCount()    < renderedFillCount    ||
+          coreGetTextCount()    < renderedTextCount) {
+        needsFullRedraw = true;
+      }
+
       if (needsFullRedraw) {
         fullRedrawCommitted();
         needsFullRedraw = false;
