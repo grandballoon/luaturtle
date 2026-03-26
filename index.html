@@ -416,8 +416,13 @@
         <h2>State Queries</h2>
         <table>
           <tr><td>position()</td><td>Returns x, y coordinates</td></tr>
+          <tr><td>xcor()</td><td>Returns x coordinate</td></tr>
+          <tr><td>ycor()</td><td>Returns y coordinate</td></tr>
           <tr><td>heading()</td><td>Returns current angle in degrees</td></tr>
           <tr><td>isdown()</td><td>Returns true if pen is down</td></tr>
+          <tr><td>filling()</td><td>Returns true if currently filling</td></tr>
+          <tr><td>distance(x, y)</td><td>Returns distance to point</td></tr>
+          <tr><td>towards(x, y)</td><td>Returns angle towards point</td></tr>
         </table>
       </div>
     </div>
@@ -448,7 +453,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|filling|xcor|ycor|distance|towards|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -964,6 +969,11 @@
           position = function(...) return turtle.position(...) end,
           heading  = function(...) return turtle.heading(...)  end,
           isdown   = function(...) return turtle.isdown(...)   end,
+          filling  = function(...) return turtle.filling(...)  end,
+          xcor     = function(...) return turtle.xcor(...)     end,
+          ycor     = function(...) return turtle.ycor(...)     end,
+          distance = function(...) return turtle.distance(...) end,
+          towards  = function(...) return turtle.towards(...)  end,
 
           setheading   = function(...) return turtle.setheading(...)   end,
           seth         = function(...) return turtle.setheading(...)   end,

@@ -309,6 +309,26 @@ function Core.new(renderer)
         return self.pen_down
     end
 
+    function self.filling()
+        return self.fill_active
+    end
+
+    function self.xcor()
+        return self.x
+    end
+
+    function self.ycor()
+        return self.y
+    end
+
+    function self.distance(x, y)
+        return distance_to(x, y)
+    end
+
+    function self.towards(x, y)
+        return towards(x, y)
+    end
+
     ----------------------------------------------------------------
     -- update(dt): drain the action queue, advance state.
     -- Called once per frame by the host's game loop.
