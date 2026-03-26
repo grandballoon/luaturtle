@@ -43,6 +43,9 @@ function Core.new(renderer)
         -- committed fills (append-only log)
         fills = {},
 
+        -- committed texts (append-only log)
+        texts = {},
+
         -- renderer (injected)
         renderer = renderer,
     }
@@ -256,6 +259,18 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "end_fill"})
     end
 
+    -- Text
+
+    function self.text(text, font, size, align)
+        table.insert(self.actions, {
+            type = "text",
+            text = tostring(text),
+            font = font or "sans-serif",
+            size = size or 14,
+            align = align or "left",
+        })
+    end
+
     -- Canvas
 
     function self.bgcolor(r, g, b, a)
@@ -358,9 +373,24 @@ function Core.new(renderer)
                 self.fill_active = false
                 self.fill_vertices = {}
 
+            elseif next_action.type == "text" then
+                table.insert(self.texts, {
+                    x = self.x,
+                    y = self.y,
+                    text = next_action.text,
+                    font = next_action.font,
+                    size = next_action.size,
+                    align = next_action.align,
+                    color = {
+                        self.pen_color[1], self.pen_color[2],
+                        self.pen_color[3], self.pen_color[4],
+                    },
+                })
+
             elseif next_action.type == "clear" then
                 self.segments = {}
                 self.fills = {}
+                self.texts = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.current = nil
@@ -379,6 +409,7 @@ function Core.new(renderer)
                 self.speed_setting = 5
                 self.segments = {}
                 self.fills = {}
+                self.texts = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.fill_color = nil
@@ -559,6 +590,18 @@ function Core.new(renderer)
     -- Returns nil if index is out of range.
     function self.get_fill(i)
         return self.fills[i]
+    end
+
+    -- Returns: total number of committed texts
+    function self.get_text_count()
+        return #self.texts
+    end
+
+    -- Returns one text by 1-based index as a named table:
+    -- { x, y, text, font, size, align, color = {r,g,b,a} }
+    -- Returns nil if index is out of range.
+    function self.get_text(i)
+        return self.texts[i]
     end
 
     -- Returns preview line as a flat array, same shape as a segment.
