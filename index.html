@@ -402,9 +402,9 @@
         </table>
                <h2>Text</h2>
         <table>
-          <tr><td>write("text")</td><td>Write text at turtle's position</td></tr>
-          <tr><td>write("text", font, size)</td><td>Custom font and size: write("hi", "monospace", 24)</td></tr>
-          <tr><td>write("text", font, size, align)</td><td>Align: "left" (default), "center", or "right"</td></tr>
+          <tr><td>text("hello")</td><td>Write text at turtle's position</td></tr>
+          <tr><td>text("hello", font, size)</td><td>Custom font and size: text("hi", "monospace", 24)</td></tr>
+          <tr><td>text("hello", font, size, align)</td><td>Align: "left" (default), "center", or "right"</td></tr>
         </table>
         <h2>Canvas</h2>
         <table>
@@ -448,7 +448,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|write)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|bgcolor|clear|reset|speed|position|heading|isdown|setheading|seth|home|setpos|arc|circle|setfillcolor|begin_fill|end_fill|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -975,7 +975,7 @@
           setfillcolor = function(...) return turtle.setfillcolor(...) end,
           begin_fill   = function(...) return turtle.begin_fill(...)   end,
           end_fill     = function(...) return turtle.end_fill(...)     end,
-          write        = function(...) return turtle.write(...)        end,
+          text         = function(...) return turtle.text(...)         end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
