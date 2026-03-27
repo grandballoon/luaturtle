@@ -52,6 +52,9 @@ function Core.new(renderer)
         -- turtle visibility
         visible = true,
 
+        -- undo stack: snapshots of full turtle state, one per user command
+        undo_stack = {},
+
         -- renderer (injected)
         renderer = renderer,
     }
@@ -180,6 +183,57 @@ function Core.new(renderer)
         return normalize_color(r, g, b, a)
     end
 
+
+    ----------------------------------------------------------------
+    -- Undo helpers
+    ----------------------------------------------------------------
+
+    local function deep_copy(orig)
+        if type(orig) ~= 'table' then return orig end
+        local copy = {}
+        for k, v in pairs(orig) do copy[k] = deep_copy(v) end
+        return copy
+    end
+
+    local function push_snapshot(s)
+        table.insert(s.undo_stack, {
+            x             = s.x,
+            y             = s.y,
+            angle         = s.angle,
+            pen_down      = s.pen_down,
+            pen_color     = deep_copy(s.pen_color),
+            pen_size      = s.pen_size,
+            bg_color      = deep_copy(s.bg_color),
+            speed_setting = s.speed_setting,
+            fill_active   = s.fill_active,
+            fill_vertices = deep_copy(s.fill_vertices),
+            fill_color    = deep_copy(s.fill_color),
+            visible       = s.visible,
+            segments      = deep_copy(s.segments),
+            fills         = deep_copy(s.fills),
+            texts         = deep_copy(s.texts),
+            dots          = deep_copy(s.dots),
+        })
+    end
+
+    local function restore_snapshot(s, snap)
+        s.x             = snap.x
+        s.y             = snap.y
+        s.angle         = snap.angle
+        s.pen_down      = snap.pen_down
+        s.pen_color     = snap.pen_color
+        s.pen_size      = snap.pen_size
+        s.bg_color      = snap.bg_color
+        s.speed_setting = snap.speed_setting
+        s.fill_active   = snap.fill_active
+        s.fill_vertices = snap.fill_vertices
+        s.fill_color    = snap.fill_color
+        s.visible       = snap.visible
+        s.segments      = snap.segments
+        s.fills         = snap.fills
+        s.texts         = snap.texts
+        s.dots          = snap.dots
+    end
 
     ----------------------------------------------------------------
     -- User-facing API: all commands are queued
@@ -338,6 +392,10 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "reset"})
     end
 
+    function self.undo()
+        table.insert(self.actions, {type = "undo"})
+    end
+
     -- Animation
 
     function self.speed(n)
@@ -408,7 +466,22 @@ function Core.new(renderer)
             if #self.actions == 0 then return end
             local next_action = table.remove(self.actions, 1)
 
-            if next_action.type == "pencolor" then
+            -- Snapshot before every user-level command so undo() can restore it.
+            -- Skip dissolved primitives (tagged by dissolving handlers) and undo itself.
+            if not next_action._dissolved and next_action.type ~= "undo" then
+                push_snapshot(self)
+            end
+
+            if next_action.type == "undo" then
+                local snap = table.remove(self.undo_stack)
+                if snap then
+                    restore_snapshot(self, snap)
+                    if self.renderer then
+                        self.renderer:set_bgcolor(self.bg_color)
+                    end
+                end
+
+            elseif next_action.type == "pencolor" then
                 self.pen_color = normalize_color(
                     next_action.r, next_action.g, next_action.b, next_action.a
                 )
@@ -546,7 +619,7 @@ function Core.new(renderer)
             elseif next_action.type == "setheading" then
                 local turn = shortest_turn(self.angle, next_action.target_angle % 360)
                 if math.abs(turn) > 1e-6 then
-                    table.insert(self.actions, 1, {type = "turn", angle = turn})
+                    table.insert(self.actions, 1, {type = "turn", angle = turn, _dissolved = true})
                 end
 
             elseif next_action.type == "setpos" then
@@ -554,31 +627,25 @@ function Core.new(renderer)
                 if dist > 1e-6 then
                     local heading = towards(next_action.tx, next_action.ty)
                     local turn = shortest_turn(self.angle, heading)
-                    -- Insert move first (it'll be at index 2), then turn
-                    -- in front of it (at index 1). They execute turn, then move.
-                    table.insert(self.actions, 1, {type = "move", distance = dist})
+                    table.insert(self.actions, 1, {type = "move", distance = dist, _dissolved = true})
                     if math.abs(turn) > 1e-6 then
-                        table.insert(self.actions, 1, {type = "turn", angle = turn})
+                        table.insert(self.actions, 1, {type = "turn", angle = turn, _dissolved = true})
                     end
                 end
 
             elseif next_action.type == "setx" then
-                -- Dissolve into setpos using the live y coordinate.
-                table.insert(self.actions, 1, {type = "setpos", tx = next_action.x, ty = self.y})
+                table.insert(self.actions, 1, {type = "setpos", tx = next_action.x, ty = self.y, _dissolved = true})
 
             elseif next_action.type == "sety" then
-                -- Dissolve into setpos using the live x coordinate.
-                table.insert(self.actions, 1, {type = "setpos", tx = self.x, ty = next_action.y})
+                table.insert(self.actions, 1, {type = "setpos", tx = self.x, ty = next_action.y, _dissolved = true})
 
             elseif next_action.type == "teleport" then
                 self.x = next_action.tx
                 self.y = next_action.ty
 
             elseif next_action.type == "home" then
-                -- home = go to (0,0), then face 0°.
-                -- Insert in reverse order: setheading last, setpos first.
-                table.insert(self.actions, 1, {type = "setheading", target_angle = 0})
-                table.insert(self.actions, 1, {type = "setpos", tx = 0, ty = 0})
+                table.insert(self.actions, 1, {type = "setheading", target_angle = 0, _dissolved = true})
+                table.insert(self.actions, 1, {type = "setpos", tx = 0, ty = 0, _dissolved = true})
 
             elseif next_action.type == "arc" then
                 local degrees = next_action.degrees
@@ -595,8 +662,8 @@ function Core.new(renderer)
                 -- Insert N turn+move pairs at the front of the queue, in reverse
                 -- order so that index 1 always holds the next action to execute.
                 for i = N, 1, -1 do
-                    table.insert(self.actions, 1, {type = "move", distance = chord})
-                    table.insert(self.actions, 1, {type = "turn", angle = turn_angle})
+                    table.insert(self.actions, 1, {type = "move", distance = chord, _dissolved = true})
+                    table.insert(self.actions, 1, {type = "turn", angle = turn_angle, _dissolved = true})
                 end
             end
         end
