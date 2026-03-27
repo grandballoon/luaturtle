@@ -1466,6 +1466,7 @@
 
   document.getElementById('btn-run').addEventListener('click', async () => {
     const code = editor.getValue();
+    location.hash = encodeURIComponent(code);
     lua.global.set('user_code', code);
     await runUserCode();
   });
@@ -1491,6 +1492,20 @@
   document.getElementById('api-close').addEventListener('click', () => {
     document.getElementById('api-overlay').classList.remove('visible');
   });
+
+  // ---- URL sharing ----
+  // If the URL hash contains code, populate the editor and auto-run.
+
+  if (location.hash && location.hash.length > 1) {
+    try {
+      const code = decodeURIComponent(location.hash.slice(1));
+      editor.setValue(code);
+      lua.global.set('user_code', code);
+      await runUserCode();
+    } catch (e) {
+      console.warn('Could not load code from URL:', e);
+    }
+  }
 
   // ---- Start ----
 
