@@ -568,6 +568,7 @@
           <tr><td>bgcolor(r, g, b)</td><td>Set background color</td></tr>
           <tr><td>clear()</td><td>Erase drawing, keep turtle position</td></tr>
           <tr><td>reset()</td><td>Erase drawing and reset turtle to start</td></tr>
+          <tr><td>undo()</td><td>Undo the last command</td></tr>
           <tr><td>speed(n)</td><td>Animation speed: 0=instant, 1=slow, 10=fast</td></tr>
         </table>
         <h2>State Queries</h2>
@@ -613,7 +614,7 @@
     '-- use fd(100), bk(100), rt(90), and lt(90) when you get tired of typing.'
   ].join('\n');
 
- const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|color|bgcolor|clear|reset|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|dot|text)\b/;
+ const TURTLE_COMMANDS = /^(forward|back|left|right|fd|bk|lt|rt|penup|pendown|pu|pd|pensize|pencolor|color|bgcolor|clear|reset|undo|speed|position|heading|isdown|filling|isvisible|hideturtle|showturtle|xcor|ycor|distance|towards|setheading|seth|home|setpos|setx|sety|teleport|arc|circle|setfillcolor|begin_fill|end_fill|dot|text)\b/;
 
   const turtleOverlay = {
     token(stream) {
@@ -1349,6 +1350,7 @@
           end_fill     = function(...) return turtle.end_fill(...)     end,
           dot          = function(...) return turtle.dot(...)          end,
           text         = function(...) return turtle.text(...)         end,
+          undo         = function(...) return turtle.undo(...)         end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
