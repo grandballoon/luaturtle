@@ -182,7 +182,6 @@
     flex-shrink: 0;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    overflow: hidden;
     font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
   }
@@ -201,6 +200,8 @@
     cursor: row-resize;
     user-select: none;
     min-height: 26px;
+    position: relative;
+    z-index: 10;
   }
 
   #terminal-panel.collapsed #terminal-header {
