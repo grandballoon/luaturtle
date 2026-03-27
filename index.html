@@ -66,6 +66,16 @@
     letter-spacing: 0.5px;
   }
 
+  #header-status {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+
+  #header-status.error {
+    color: var(--error);
+  }
+
   .header-controls {
     display: flex;
     gap: 8px;
@@ -166,24 +176,156 @@
 
   .cm-s-tomorrow-night-eighties .cm-turtle-cmd { color: #ffcc66; }
 
-  #status-bar {
-    padding: 6px 12px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    color: var(--text-muted);
+  #terminal-panel {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
     background: var(--surface);
     border-top: 1px solid var(--border);
-    min-height: 28px;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
   }
 
-  #status-bar.error {
+  #terminal-panel.collapsed #terminal-content {
+    display: none;
+  }
+
+  #terminal-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    cursor: row-resize;
+    user-select: none;
+    min-height: 26px;
+    position: relative;
+    z-index: 10;
+  }
+
+  #terminal-panel.collapsed #terminal-header {
+    cursor: default;
+    border-bottom: none;
+  }
+
+  [data-tooltip] {
+    position: relative;
+  }
+
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + 6px);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    white-space: nowrap;
+    padding: 3px 7px;
+    border-radius: 3px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    z-index: 100;
+  }
+
+  [data-tooltip]:hover::after {
+    opacity: 1;
+  }
+
+  /* Caret is leftmost — anchor tooltip to left edge so it extends right */
+  #terminal-caret[data-tooltip]::after {
+    left: 0;
+  }
+
+  /* Clear is rightmost — anchor tooltip to right edge so it extends left */
+  #terminal-clear[data-tooltip]::after {
+    right: 0;
+  }
+
+  #terminal-caret {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 9px;
+    line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    min-width: unset;
+    font-family: inherit;
+    transition: border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  #terminal-caret:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  #terminal-caret-icon {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  #terminal-panel.collapsed #terminal-caret-icon {
+    transform: rotate(-90deg);
+  }
+
+  #terminal-label {
+    color: var(--text-muted);
+    font-size: 11px;
+    flex: 1;
+  }
+
+  #terminal-clear {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 11px;
+    cursor: pointer;
+    padding: 2px 6px;
+    line-height: 1;
+    min-width: unset;
+    font-family: inherit;
+  }
+
+  #terminal-clear:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
+  }
+
+  #terminal-panel.collapsed #terminal-clear {
+    display: none;
+  }
+
+  #terminal-content {
+    overflow-y: auto;
+    flex: 1;
+    padding: 4px 8px;
+    line-height: 1.6;
+  }
+
+  .terminal-line {
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+  }
+
+  .terminal-line.error {
     color: var(--error);
   }
 
-  #canvas-panel {
+  .terminal-line.info {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+
+#canvas-panel {
     position: relative;
     background: var(--canvas-bg);
     overflow: hidden;
@@ -342,6 +484,7 @@
   <header>
     <h1>LUA TURTLE</h1>
     <div class="header-controls">
+      <span id="header-status"></span>
       <button id="btn-api">Commands</button>
       <button id="btn-stop">Stop</button>
       <button id="btn-run" class="primary">Run &#9654;</button>
@@ -351,7 +494,14 @@
   <div id="main">
     <div id="editor-panel">
       <textarea id="editor-textarea"></textarea>
-      <div id="status-bar">Loading...</div>
+      <div id="terminal-panel">
+        <div id="terminal-header">
+          <button id="terminal-caret" data-tooltip="close"><span id="terminal-caret-icon">&#9660;</span></button>
+          <span id="terminal-label">Terminal</span>
+          <button id="terminal-clear">clear</button>
+        </div>
+        <div id="terminal-content"></div>
+      </div>
     </div>
     <div id="splitter" title="Drag to resize">
       <div id="splitter-grip">
@@ -487,12 +637,145 @@
   editor.addOverlay(turtleOverlay);
 
 
-  const statusBar = document.getElementById('status-bar');
+  // ---- Header status ----
+
+  const headerStatus = document.getElementById('header-status');
 
   function setStatus(msg, isError) {
-    statusBar.textContent = msg;
-    statusBar.className = isError ? 'error' : '';
+    headerStatus.textContent = msg;
+    headerStatus.className = isError ? 'error' : '';
   }
+
+  // ---- Terminal panel ----
+
+  const terminalPanel   = document.getElementById('terminal-panel');
+  const terminalContent = document.getElementById('terminal-content');
+  const terminalCaret   = document.getElementById('terminal-caret');
+  const LINE_HEIGHT     = 20;   // px per line in terminal
+  const HEADER_HEIGHT   = 26;   // px for terminal header bar
+  const DEFAULT_LINES   = 3;
+  const STORAGE_KEY     = 'luaturtle-terminal-height';
+
+  let terminalOpen    = true;
+  let terminalHeight  = null;  // null = use default/stored
+
+  function getOpenHeight() {
+    if (terminalHeight !== null) return terminalHeight;
+    const stored = localStorage.getItem(STORAGE_KEY);
+    return stored ? parseInt(stored, 10) : HEADER_HEIGHT + LINE_HEIGHT * DEFAULT_LINES + 8;
+  }
+
+  function applyTerminalHeight(h) {
+    terminalPanel.style.height = h + 'px';
+    terminalContent.style.height = (h - HEADER_HEIGHT - 4) + 'px';
+  }
+
+  function openTerminal() {
+    terminalOpen = true;
+    terminalPanel.classList.remove('collapsed');
+    applyTerminalHeight(getOpenHeight());
+    terminalCaret.dataset.tooltip = 'close';
+    editor.refresh();
+  }
+
+  function closeTerminal() {
+    terminalOpen = false;
+    terminalPanel.classList.add('collapsed');
+    terminalPanel.style.height = HEADER_HEIGHT + 'px';
+    terminalCaret.dataset.tooltip = 'open';
+    editor.refresh();
+  }
+
+  function toggleTerminal() {
+    if (terminalOpen) closeTerminal(); else openTerminal();
+  }
+
+  let terminalDragDidMove = false;
+
+  // Caret button toggles open/close (suppressed if a drag just finished)
+  document.getElementById('terminal-caret').addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (terminalDragDidMove) { terminalDragDidMove = false; return; }
+    toggleTerminal();
+  });
+
+  // Ctrl+I toggles
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+      e.preventDefault();
+      toggleTerminal();
+    }
+  });
+
+  // Clear button
+  document.getElementById('terminal-clear').addEventListener('click', (e) => {
+    e.stopPropagation();
+    terminalContent.innerHTML = '';
+  });
+
+  // Terminal header drag-to-resize
+  {
+    const terminalHeader = document.getElementById('terminal-header');
+    let dragging = false;
+    let startY, startH;
+
+    terminalHeader.addEventListener('pointerdown', (e) => {
+      if (!terminalOpen) return;
+      // Don't capture if clicking a button inside the header
+      if (e.target.closest('button')) return;
+      dragging = true;
+      terminalDragDidMove = false;
+      startY = e.clientY;
+      startH = terminalPanel.getBoundingClientRect().height;
+      terminalHeader.setPointerCapture(e.pointerId);
+    });
+
+    terminalHeader.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const delta = startY - e.clientY;  // drag up = bigger
+      if (Math.abs(delta) < 3) return;   // dead zone before counting as drag
+      terminalDragDidMove = true;
+      const editorPanel = document.getElementById('editor-panel');
+      const maxH = editorPanel.getBoundingClientRect().height - 60;
+      const minH = HEADER_HEIGHT + LINE_HEIGHT + 8;
+      const newH = Math.max(minH, Math.min(maxH, startH + delta));
+      terminalHeight = newH;
+      localStorage.setItem(STORAGE_KEY, newH);
+      applyTerminalHeight(newH);
+      editor.refresh();
+    });
+
+    terminalHeader.addEventListener('pointerup', () => {
+      dragging = false;
+    });
+
+    terminalHeader.addEventListener('pointercancel', () => {
+      dragging = false;
+    });
+  }
+
+  function terminalAppend(text, cls) {
+    const line = document.createElement('div');
+    line.className = 'terminal-line' + (cls ? ' ' + cls : '');
+    line.textContent = text;
+    terminalContent.appendChild(line);
+    terminalContent.scrollTop = terminalContent.scrollHeight;
+    terminalHasContent = true;
+  }
+
+  function terminalAppendError(msg) {
+    terminalAppend(msg, 'error');
+    if (!terminalOpen) openTerminal();
+    setStatus('Error \u2014 check terminal', true);
+  }
+
+  // Initialize: show welcome message, open at default height
+  terminalAppend(
+    'Print output and error messages appear here.  ' +
+    'ctrl + i to toggle \u2022 drag border to resize.',
+    'info'
+  );
+  openTerminal();
 
   // ---- Canvas setup ----
 
@@ -895,6 +1178,7 @@
   let coreGetPreviewLine = null;
   let coreIsBusy = null;
   let coreInterrupt = null;
+  let coreDrainPrint = null;
 
   try {
     const factory = new wasmoon.LuaFactory('glue.wasm');
@@ -912,6 +1196,20 @@
     await lua.doString(`
       Core = require("core")
       turtle = Core.new(nil)
+
+      -- Intercept print() to route output to the terminal panel.
+      _print_output = {}
+      print = function(...)
+        local args = {...}
+        local parts = {}
+        for i = 1, #args do parts[i] = tostring(args[i]) end
+        table.insert(_print_output, table.concat(parts, "\\t"))
+      end
+      _bridge_drain_print = function()
+        local out = _print_output
+        _print_output = {}
+        return out
+      end
 
       _bridge_update          = function(dt) return turtle.update(dt) end
       _bridge_turtle_state    = function() return turtle.get_turtle_state() end
@@ -943,6 +1241,7 @@
     coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
     coreIsBusy          = lua.global.get('_bridge_is_busy');
     coreInterrupt       = lua.global.get('_bridge_interrupt');
+    coreDrainPrint      = lua.global.get('_bridge_drain_print');
 
     setStatus('Ready \u2014 click Run or press Ctrl+Enter');
 
@@ -984,6 +1283,7 @@
     renderedFillCount = 0;
     renderedTextCount = 0;
     renderedDotCount = 0;
+
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
     commitCtx.clearRect(0, 0, w, h);
@@ -1074,18 +1374,21 @@
         end
       `);
 
+      isRunning = true;
       setStatus('Running');
     } catch (err) {
+      isRunning = false;
       const msg = err.message || String(err);
       const cleaned = msg.replace(/^.*Lua Error\([^)]*\):\s*/, '');
-      setStatus(cleaned, true);
+      terminalAppendError(cleaned);
       console.error('User code error:', err);
     }
   }
 
   // ---- Game loop ----
 
-  let lastTime = null;
+  let lastTime  = null;
+  let isRunning = false;
 
   function gameLoop(timestamp) {
     requestAnimationFrame(gameLoop);
@@ -1099,6 +1402,23 @@
       coreUpdate(dt);
     } catch (err) {
       console.error('Update error:', err);
+    }
+
+    // Drain Lua print() output into terminal
+    if (coreDrainPrint) {
+      try {
+        const lines = coreDrainPrint();
+        if (lines) {
+          const count = Object.keys(lines).length;
+          for (let i = 0; i < count; i++) {
+            if (lines[i] !== null && lines[i] !== undefined) {
+              terminalAppend(String(lines[i]));
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Print drain error:', err);
+      }
     }
 
     try {
@@ -1131,7 +1451,8 @@
       renderFrame(state, bgColor, previewLine);
 
       const busy = coreIsBusy();
-      if (busy === 0 && statusBar.textContent === 'Running') {
+      if (busy === 0 && isRunning) {
+        isRunning = false;
         setStatus('Done');
       }
     } catch (err) {
