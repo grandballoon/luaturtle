@@ -204,15 +204,28 @@
   }
 
   #terminal-panel.collapsed #terminal-header {
-    cursor: pointer;
+    cursor: default;
     border-bottom: none;
   }
 
   #terminal-caret {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 3px;
     color: var(--text-muted);
-    font-size: 10px;
-    transition: transform 0.15s ease;
+    font-size: 9px;
     line-height: 1;
+    padding: 2px 4px;
+    cursor: pointer;
+    min-width: unset;
+    font-family: inherit;
+    transition: transform 0.15s ease, border-color 0.15s ease;
+    flex-shrink: 0;
+  }
+
+  #terminal-caret:hover {
+    border-color: var(--text-muted);
+    color: var(--text);
   }
 
   #terminal-panel.collapsed #terminal-caret {
@@ -229,7 +242,7 @@
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 14px;
+    font-size: 11px;
     cursor: pointer;
     padding: 0 4px;
     line-height: 1;
@@ -268,13 +281,8 @@
     font-style: italic;
   }
 
-  .terminal-separator {
-    border: none;
-    border-top: 1px solid var(--border);
-    margin: 4px 0;
-  }
 
-  #canvas-panel {
+#canvas-panel {
     position: relative;
     background: var(--canvas-bg);
     overflow: hidden;
@@ -445,9 +453,9 @@
       <textarea id="editor-textarea"></textarea>
       <div id="terminal-panel">
         <div id="terminal-header">
-          <span id="terminal-caret">&#9660;</span>
+          <button id="terminal-caret" title="Collapse terminal">&#9660;</button>
           <span id="terminal-label">Terminal</span>
-          <button id="terminal-clear" title="Clear terminal">&times;</button>
+          <button id="terminal-clear" title="Clear terminal">clear</button>
         </div>
         <div id="terminal-content"></div>
       </div>
@@ -638,8 +646,9 @@
 
   let terminalDragDidMove = false;
 
-  // Header click toggles open/close (suppressed if a drag just finished)
-  document.getElementById('terminal-header').addEventListener('click', (e) => {
+  // Caret button toggles open/close (suppressed if a drag just finished)
+  document.getElementById('terminal-caret').addEventListener('click', (e) => {
+    e.stopPropagation();
     if (terminalDragDidMove) { terminalDragDidMove = false; return; }
     toggleTerminal();
   });
@@ -697,9 +706,6 @@
     });
   }
 
-  let terminalHasContent = false;
-  let lastRunHadContent  = false;
-
   function terminalAppend(text, cls) {
     const line = document.createElement('div');
     line.className = 'terminal-line' + (cls ? ' ' + cls : '');
@@ -707,13 +713,6 @@
     terminalContent.appendChild(line);
     terminalContent.scrollTop = terminalContent.scrollHeight;
     terminalHasContent = true;
-  }
-
-  function terminalAppendSeparator() {
-    const hr = document.createElement('hr');
-    hr.className = 'terminal-separator';
-    terminalContent.appendChild(hr);
-    terminalContent.scrollTop = terminalContent.scrollHeight;
   }
 
   function terminalAppendError(msg) {
@@ -725,7 +724,7 @@
   // Initialize: show welcome message, open at default height
   terminalAppend(
     'Print output and error messages appear here.  ' +
-    'Ctrl+I to toggle \u2022 drag border to resize.',
+    'ctrl + i to toggle \u2022 drag border to resize.',
     'info'
   );
   openTerminal();
@@ -1236,8 +1235,6 @@
     renderedFillCount = 0;
     renderedTextCount = 0;
     renderedDotCount = 0;
-
-    terminalAppendSeparator();
 
     const w = commitCanvas.width / (window.devicePixelRatio || 1);
     const h = commitCanvas.height / (window.devicePixelRatio || 1);
