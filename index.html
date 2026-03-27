@@ -674,7 +674,9 @@
     let startY, startH;
 
     terminalHeader.addEventListener('pointerdown', (e) => {
-      if (!terminalOpen) return;  // collapsed: let click handler toggle
+      if (!terminalOpen) return;
+      // Don't capture if clicking a button inside the header
+      if (e.target.closest('button')) return;
       dragging = true;
       terminalDragDidMove = false;
       startY = e.clientY;
