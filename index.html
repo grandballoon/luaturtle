@@ -453,9 +453,9 @@
       <textarea id="editor-textarea"></textarea>
       <div id="terminal-panel">
         <div id="terminal-header">
-          <button id="terminal-caret" title="Collapse terminal">&#9660;</button>
+          <button id="terminal-caret" title="collapse">&#9660;</button>
           <span id="terminal-label">Terminal</span>
-          <button id="terminal-clear" title="Clear terminal">clear</button>
+          <button id="terminal-clear" title="clear terminal">clear</button>
         </div>
         <div id="terminal-content"></div>
       </div>
@@ -607,6 +607,7 @@
 
   const terminalPanel   = document.getElementById('terminal-panel');
   const terminalContent = document.getElementById('terminal-content');
+  const terminalCaret   = document.getElementById('terminal-caret');
   const LINE_HEIGHT     = 20;   // px per line in terminal
   const HEADER_HEIGHT   = 26;   // px for terminal header bar
   const DEFAULT_LINES   = 3;
@@ -630,6 +631,7 @@
     terminalOpen = true;
     terminalPanel.classList.remove('collapsed');
     applyTerminalHeight(getOpenHeight());
+    terminalCaret.title = 'collapse';
     editor.refresh();
   }
 
@@ -637,6 +639,7 @@
     terminalOpen = false;
     terminalPanel.classList.add('collapsed');
     terminalPanel.style.height = HEADER_HEIGHT + 'px';
+    terminalCaret.title = 'expand';
     editor.refresh();
   }
 
