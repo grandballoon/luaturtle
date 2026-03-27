@@ -177,42 +177,6 @@
 
   .cm-s-tomorrow-night-eighties .cm-turtle-cmd { color: #ffcc66; }
 
-  #terminal-splitter {
-    height: 4px;
-    background: var(--border);
-    cursor: row-resize;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s ease;
-  }
-
-  #terminal-splitter:hover,
-  #terminal-splitter.dragging {
-    background: var(--accent-dim);
-  }
-
-  #terminal-splitter-grip {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    pointer-events: none;
-  }
-
-  #terminal-splitter-grip span {
-    display: block;
-    width: 16px;
-    height: 1px;
-    background: var(--text-muted);
-    border-radius: 1px;
-  }
-
-  #terminal-splitter:hover #terminal-splitter-grip span,
-  #terminal-splitter.dragging #terminal-splitter-grip span {
-    background: var(--accent);
-  }
-
   #terminal-panel {
     display: flex;
     flex-direction: column;
@@ -224,7 +188,6 @@
     font-size: 12px;
   }
 
-  #terminal-panel.collapsed #terminal-splitter,
   #terminal-panel.collapsed #terminal-content {
     display: none;
   }
@@ -236,12 +199,13 @@
     padding: 4px 8px;
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
-    cursor: pointer;
+    cursor: row-resize;
     user-select: none;
     min-height: 26px;
   }
 
   #terminal-panel.collapsed #terminal-header {
+    cursor: pointer;
     border-bottom: none;
   }
 
@@ -486,11 +450,6 @@
           <span id="terminal-label">Terminal</span>
           <button id="terminal-clear" title="Clear terminal">&times;</button>
         </div>
-        <div id="terminal-splitter" title="Drag to resize">
-          <div id="terminal-splitter-grip">
-            <span></span><span></span><span></span>
-          </div>
-        </div>
         <div id="terminal-content"></div>
       </div>
     </div>
@@ -678,8 +637,13 @@
     if (terminalOpen) closeTerminal(); else openTerminal();
   }
 
-  // Header click toggles open/close
-  document.getElementById('terminal-header').addEventListener('click', toggleTerminal);
+  let terminalDragDidMove = false;
+
+  // Header click toggles open/close (suppressed if a drag just finished)
+  document.getElementById('terminal-header').addEventListener('click', (e) => {
+    if (terminalDragDidMove) { terminalDragDidMove = false; return; }
+    toggleTerminal();
+  });
 
   // Ctrl+I toggles
   document.addEventListener('keydown', (e) => {
@@ -695,25 +659,26 @@
     terminalContent.innerHTML = '';
   });
 
-  // Terminal splitter drag
+  // Terminal header drag-to-resize
   {
-    const splitter = document.getElementById('terminal-splitter');
+    const terminalHeader = document.getElementById('terminal-header');
     let dragging = false;
     let startY, startH;
 
-    splitter.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+    terminalHeader.addEventListener('pointerdown', (e) => {
+      if (!terminalOpen) return;  // collapsed: let click handler toggle
       dragging = true;
+      terminalDragDidMove = false;
       startY = e.clientY;
       startH = terminalPanel.getBoundingClientRect().height;
-      splitter.classList.add('dragging');
-      splitter.setPointerCapture(e.pointerId);
+      terminalHeader.setPointerCapture(e.pointerId);
     });
 
-    splitter.addEventListener('pointermove', (e) => {
+    terminalHeader.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const delta = startY - e.clientY;  // drag up = bigger
+      if (Math.abs(delta) < 3) return;   // dead zone before counting as drag
+      terminalDragDidMove = true;
       const editorPanel = document.getElementById('editor-panel');
       const maxH = editorPanel.getBoundingClientRect().height - 60;
       const minH = HEADER_HEIGHT + LINE_HEIGHT + 8;
@@ -724,14 +689,13 @@
       editor.refresh();
     });
 
-    const stopDrag = () => {
-      if (dragging) {
-        dragging = false;
-        splitter.classList.remove('dragging');
-      }
-    };
-    splitter.addEventListener('pointerup', stopDrag);
-    splitter.addEventListener('pointercancel', stopDrag);
+    terminalHeader.addEventListener('pointerup', () => {
+      dragging = false;
+    });
+
+    terminalHeader.addEventListener('pointercancel', () => {
+      dragging = false;
+    });
   }
 
   let terminalHasContent = false;
