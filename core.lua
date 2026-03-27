@@ -46,6 +46,12 @@ function Core.new(renderer)
         -- committed texts (append-only log)
         texts = {},
 
+        -- committed dots (append-only log)
+        dots = {},
+
+        -- turtle visibility
+        visible = true,
+
         -- renderer (injected)
         renderer = renderer,
     }
@@ -211,6 +217,20 @@ function Core.new(renderer)
         table.insert(self.actions, {type = "setpos", tx = tx or 0, ty = ty or 0})
     end
 
+    -- setx/sety dissolve at execution time so they read the live coordinate.
+    function self.setx(x)
+        table.insert(self.actions, {type = "setx", x = x or 0})
+    end
+
+    function self.sety(y)
+        table.insert(self.actions, {type = "sety", y = y or 0})
+    end
+
+    -- teleport: instant positional jump, no drawing, no fill vertex.
+    function self.teleport(tx, ty)
+        table.insert(self.actions, {type = "teleport", tx = tx or 0, ty = ty or 0})
+    end
+
     -- Pen control
 
     function self.penup()
@@ -225,6 +245,25 @@ function Core.new(renderer)
         if type(s) == "number" then
             table.insert(self.actions, {type = "pensize", size = s})
         end
+    end
+
+    -- color("red") or color(r,g,b) → set both pen and fill to the same color.
+    -- color("red", "blue") → set pen and fill independently.
+    -- Getter omitted: Wasmoon only delivers the first return value reliably.
+    function self.color(r, g, b, a)
+        local pen_c, fill_c
+        if type(r) == "string" and type(g) == "string" then
+            pen_c  = resolve_color(r)
+            fill_c = resolve_color(g)
+        else
+            pen_c  = resolve_color(r, g, b, a)
+            fill_c = pen_c
+        end
+        table.insert(self.actions, {
+            type   = "color",
+            pen_r  = pen_c[1],  pen_g  = pen_c[2],  pen_b  = pen_c[3],  pen_a  = pen_c[4],
+            fill_r = fill_c[1], fill_g = fill_c[2], fill_b = fill_c[3], fill_a = fill_c[4],
+        })
     end
 
     function self.pencolor(r, g, b, a)
@@ -257,6 +296,19 @@ function Core.new(renderer)
 
     function self.end_fill()
         table.insert(self.actions, {type = "end_fill"})
+    end
+
+    -- Dot
+
+    -- color args are optional; omitting them uses the pen color at execution time.
+    -- Accepts the same color forms as pencolor: dot(10), dot(10,"red"), dot(10,r,g,b).
+    function self.dot(size, r, g, b, a)
+        local c = (r ~= nil) and resolve_color(r, g, b, a) or nil
+        table.insert(self.actions, {
+            type  = "dot",
+            size  = size,   -- nil = use 2 * pen_size at execution time
+            color = c,
+        })
     end
 
     -- Text
@@ -309,6 +361,38 @@ function Core.new(renderer)
         return self.pen_down
     end
 
+    function self.filling()
+        return self.fill_active
+    end
+
+    function self.isvisible()
+        return self.visible
+    end
+
+    function self.hideturtle()
+        table.insert(self.actions, {type = "hideturtle"})
+    end
+
+    function self.showturtle()
+        table.insert(self.actions, {type = "showturtle"})
+    end
+
+    function self.xcor()
+        return self.x
+    end
+
+    function self.ycor()
+        return self.y
+    end
+
+    function self.distance(x, y)
+        return distance_to(x, y)
+    end
+
+    function self.towards(x, y)
+        return towards(x, y)
+    end
+
     ----------------------------------------------------------------
     -- update(dt): drain the action queue, advance state.
     -- Called once per frame by the host's game loop.
@@ -329,6 +413,12 @@ function Core.new(renderer)
                     next_action.r, next_action.g, next_action.b, next_action.a
                 )
 
+            elseif next_action.type == "color" then
+                self.pen_color  = {next_action.pen_r,  next_action.pen_g,
+                                   next_action.pen_b,  next_action.pen_a}
+                self.fill_color = {next_action.fill_r, next_action.fill_g,
+                                   next_action.fill_b, next_action.fill_a}
+
             elseif next_action.type == "bgcolor" then
                 self.bg_color = normalize_color(
                     next_action.r, next_action.g, next_action.b, next_action.a
@@ -342,6 +432,12 @@ function Core.new(renderer)
 
             elseif next_action.type == "pendown" then
                 self.pen_down = true
+
+            elseif next_action.type == "hideturtle" then
+                self.visible = false
+
+            elseif next_action.type == "showturtle" then
+                self.visible = true
 
             elseif next_action.type == "pensize" then
                 self.pen_size = next_action.size
@@ -387,10 +483,23 @@ function Core.new(renderer)
                     },
                 })
 
+            elseif next_action.type == "dot" then
+                local color = next_action.color or {
+                    self.pen_color[1], self.pen_color[2],
+                    self.pen_color[3], self.pen_color[4],
+                }
+                table.insert(self.dots, {
+                    x     = self.x,
+                    y     = self.y,
+                    size  = next_action.size or 2 * self.pen_size,
+                    color = color,
+                })
+
             elseif next_action.type == "clear" then
                 self.segments = {}
                 self.fills = {}
                 self.texts = {}
+                self.dots = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.current = nil
@@ -410,9 +519,11 @@ function Core.new(renderer)
                 self.segments = {}
                 self.fills = {}
                 self.texts = {}
+                self.dots = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.fill_color = nil
+                self.visible = true
                 self.current = nil
                 if self.renderer then
                     self.renderer:commit_clear()
@@ -450,6 +561,18 @@ function Core.new(renderer)
                         table.insert(self.actions, 1, {type = "turn", angle = turn})
                     end
                 end
+
+            elseif next_action.type == "setx" then
+                -- Dissolve into setpos using the live y coordinate.
+                table.insert(self.actions, 1, {type = "setpos", tx = next_action.x, ty = self.y})
+
+            elseif next_action.type == "sety" then
+                -- Dissolve into setpos using the live x coordinate.
+                table.insert(self.actions, 1, {type = "setpos", tx = self.x, ty = next_action.y})
+
+            elseif next_action.type == "teleport" then
+                self.x = next_action.tx
+                self.y = next_action.ty
 
             elseif next_action.type == "home" then
                 -- home = go to (0,0), then face 0°.
@@ -556,6 +679,7 @@ function Core.new(renderer)
             pen_b = self.pen_color[3],
             pen_a = self.pen_color[4],
             pen_size = self.pen_size,
+            visible = self.visible,
         }
     end
 
@@ -602,6 +726,18 @@ function Core.new(renderer)
     -- Returns nil if index is out of range.
     function self.get_text(i)
         return self.texts[i]
+    end
+
+    -- Returns: total number of committed dots
+    function self.get_dot_count()
+        return #self.dots
+    end
+
+    -- Returns one dot by 1-based index as a named table:
+    -- { x, y, size, color = {r,g,b,a} }
+    -- Returns nil if index is out of range.
+    function self.get_dot(i)
+        return self.dots[i]
     end
 
     -- Returns preview line as a flat array, same shape as a segment.
