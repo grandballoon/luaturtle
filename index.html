@@ -235,14 +235,20 @@
     opacity: 1;
   }
 
-  /* Caret is leftmost — pin tooltip to left edge of button */
+  /* Caret is leftmost — tooltip appears to the right */
   #terminal-caret[data-tooltip]::after {
-    left: 0;
+    left: calc(100% + 6px);
+    bottom: auto;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
-  /* Clear is rightmost — pin tooltip to right edge of button */
+  /* Clear is rightmost — tooltip appears to the left */
   #terminal-clear[data-tooltip]::after {
-    right: 0;
+    right: calc(100% + 6px);
+    bottom: auto;
+    top: 50%;
+    transform: translateY(-50%);
   }
 
   #terminal-caret {
