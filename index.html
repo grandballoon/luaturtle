@@ -217,8 +217,6 @@
     content: attr(data-tooltip);
     position: absolute;
     bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
     background: var(--surface);
     border: 1px solid var(--border);
     color: var(--text-muted);
@@ -235,6 +233,16 @@
 
   [data-tooltip]:hover::after {
     opacity: 1;
+  }
+
+  /* Caret is leftmost — pin tooltip to left edge of button */
+  #terminal-caret[data-tooltip]::after {
+    left: 0;
+  }
+
+  /* Clear is rightmost — pin tooltip to right edge of button */
+  #terminal-clear[data-tooltip]::after {
+    right: 0;
   }
 
   #terminal-caret {
@@ -483,9 +491,9 @@
       <textarea id="editor-textarea"></textarea>
       <div id="terminal-panel">
         <div id="terminal-header">
-          <button id="terminal-caret" data-tooltip="collapse">&#9660;</button>
+          <button id="terminal-caret" data-tooltip="close">&#9660;</button>
           <span id="terminal-label">Terminal</span>
-          <button id="terminal-clear" data-tooltip="clear terminal">clear</button>
+          <button id="terminal-clear" data-tooltip="clear">clear</button>
         </div>
         <div id="terminal-content"></div>
       </div>
@@ -661,7 +669,7 @@
     terminalOpen = true;
     terminalPanel.classList.remove('collapsed');
     applyTerminalHeight(getOpenHeight());
-    terminalCaret.dataset.tooltip = 'collapse';
+    terminalCaret.dataset.tooltip = 'close';
     editor.refresh();
   }
 
@@ -669,7 +677,7 @@
     terminalOpen = false;
     terminalPanel.classList.add('collapsed');
     terminalPanel.style.height = HEADER_HEIGHT + 'px';
-    terminalCaret.dataset.tooltip = 'expand';
+    terminalCaret.dataset.tooltip = 'open';
     editor.refresh();
   }
 
