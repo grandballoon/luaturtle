@@ -235,20 +235,14 @@
     opacity: 1;
   }
 
-  /* Caret is leftmost — tooltip appears to the right */
+  /* Caret is leftmost — anchor tooltip to left edge so it extends right */
   #terminal-caret[data-tooltip]::after {
-    left: calc(100% + 6px);
-    bottom: auto;
-    top: 50%;
-    transform: translateY(-50%);
+    left: 0;
   }
 
-  /* Clear is rightmost — tooltip appears to the left */
+  /* Clear is rightmost — anchor tooltip to right edge so it extends left */
   #terminal-clear[data-tooltip]::after {
-    right: calc(100% + 6px);
-    bottom: auto;
-    top: 50%;
-    transform: translateY(-50%);
+    right: 0;
   }
 
   #terminal-caret {
@@ -262,7 +256,7 @@
     cursor: pointer;
     min-width: unset;
     font-family: inherit;
-    transition: transform 0.15s ease, border-color 0.15s ease;
+    transition: border-color 0.15s ease;
     flex-shrink: 0;
   }
 
@@ -271,7 +265,12 @@
     color: var(--text);
   }
 
-  #terminal-panel.collapsed #terminal-caret {
+  #terminal-caret-icon {
+    display: inline-block;
+    transition: transform 0.15s ease;
+  }
+
+  #terminal-panel.collapsed #terminal-caret-icon {
     transform: rotate(-90deg);
   }
 
@@ -497,7 +496,7 @@
       <textarea id="editor-textarea"></textarea>
       <div id="terminal-panel">
         <div id="terminal-header">
-          <button id="terminal-caret" data-tooltip="close">&#9660;</button>
+          <button id="terminal-caret" data-tooltip="close"><span id="terminal-caret-icon">&#9660;</span></button>
           <span id="terminal-label">Terminal</span>
           <button id="terminal-clear" data-tooltip="clear">clear</button>
         </div>
