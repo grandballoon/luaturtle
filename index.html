@@ -485,6 +485,7 @@
     <h1>LUA TURTLE</h1>
     <div class="header-controls">
       <span id="header-status"></span>
+      <button id="btn-share">Share</button>
       <button id="btn-api">Commands</button>
       <button id="btn-stop">Stop</button>
       <button id="btn-run" class="primary">Run &#9654;</button>
@@ -1475,6 +1476,18 @@
     setStatus('Stopped');
   });
 
+  document.getElementById('btn-share').addEventListener('click', () => {
+    const code = editor.getValue();
+    location.hash = encodeURIComponent(code);
+    navigator.clipboard.writeText(location.href).then(() => {
+      setStatus('Link copied!');
+      setTimeout(() => setStatus(''), 2000);
+    }).catch(() => {
+      setStatus('Link ready — copy from address bar');
+      setTimeout(() => setStatus(''), 3000);
+    });
+  });
+
   editor.setOption('extraKeys', {
     'Ctrl-Enter': () => document.getElementById('btn-run').click(),
     'Cmd-Enter': () => document.getElementById('btn-run').click(),
@@ -1491,6 +1504,20 @@
   document.getElementById('api-close').addEventListener('click', () => {
     document.getElementById('api-overlay').classList.remove('visible');
   });
+
+  // ---- URL sharing ----
+  // If the URL hash contains code, populate the editor and auto-run.
+
+  if (location.hash && location.hash.length > 1) {
+    try {
+      const code = decodeURIComponent(location.hash.slice(1));
+      editor.setValue(code);
+      lua.global.set('user_code', code);
+      await runUserCode();
+    } catch (e) {
+      console.warn('Could not load code from URL:', e);
+    }
+  }
 
   // ---- Start ----
 
