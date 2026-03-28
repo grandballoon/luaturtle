@@ -398,7 +398,22 @@ function Core.new(renderer)
 
     -- Animation
 
+    local SPEED_NAMES = {
+        slow    = 1,
+        medium  = 5,
+        fast    = 7,
+        faster  = 9,
+        fastest = 10,
+        instant = 0,
+    }
+
     function self.speed(n)
+        if type(n) == "string" then
+            n = SPEED_NAMES[n] or SPEED_NAMES[n:lower()]
+            if n == nil then
+                error("unknown speed name. Use a number 0-10 or: slow, medium, fast, faster, fastest, instant", 2)
+            end
+        end
         if type(n) ~= "number" then return end
         table.insert(self.actions, {type = "speed", value = math.max(0, math.min(10, n))})
     end

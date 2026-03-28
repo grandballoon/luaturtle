@@ -126,6 +126,36 @@ local function test_isdown_query_is_immediate()
     print("PASS test_isdown_query_is_immediate")
 end
 
+local function test_speed_named_constants()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    local cases = {
+        {name = "slow",    val = 1},
+        {name = "medium",  val = 5},
+        {name = "fast",    val = 7},
+        {name = "faster",  val = 9},
+        {name = "fastest", val = 10},
+        {name = "instant", val = 0},
+    }
+    for _, c in ipairs(cases) do
+        t.speed(c.name)
+        h.drain(t)
+        assert(t.speed_setting == c.val,
+            "speed('" .. c.name .. "') should set speed_setting to " .. c.val ..
+            ", got " .. t.speed_setting)
+    end
+    print("PASS test_speed_named_constants")
+end
+
+local function test_speed_unknown_name_errors()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    local ok, err = pcall(function() t.speed("turbo") end)
+    assert(not ok, "speed('turbo') should error")
+    assert(err:find("unknown speed name"), "error message should mention unknown speed name")
+    print("PASS test_speed_unknown_name_errors")
+end
+
 -- Run all tests
 test_reset_clears_position()
 test_reset_restores_pen_state()
@@ -137,5 +167,7 @@ test_speed_animated_does_not_complete_instantly()
 test_bgcolor_notifies_renderer()
 test_position_query_is_immediate()
 test_isdown_query_is_immediate()
+test_speed_named_constants()
+test_speed_unknown_name_errors()
 
 print("All reset/speed/query tests passed.")
