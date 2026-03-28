@@ -1511,6 +1511,24 @@ button {
     tc.fillStyle = colorToCSS(bg[0], bg[1], bg[2], bg[3]);
     tc.fillRect(0, 0, cssW, cssH);
     tc.drawImage(commitCanvas, 0, 0, cssW, cssH);
+    const state = coreGetTurtleState();
+    if (state.visible) {
+      const sx = screenX(state.x);
+      const sy = screenY(state.y);
+      const screenAngle = -state.angle * Math.PI / 180;
+      tc.save();
+      tc.translate(sx, sy);
+      tc.rotate(screenAngle);
+      const s = 10 * viewScale;
+      tc.beginPath();
+      tc.moveTo(s, 0);
+      tc.lineTo(-s * 0.6, s * 0.6);
+      tc.lineTo(-s * 0.6, -s * 0.6);
+      tc.closePath();
+      tc.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
+      tc.fill();
+      tc.restore();
+    }
     tmp.toBlob(blob => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
