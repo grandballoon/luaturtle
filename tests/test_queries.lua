@@ -118,6 +118,55 @@ local function test_towards_west()
     print("PASS test_towards_west")
 end
 
+-- Verify that queries auto-drain the action queue so they reflect
+-- post-command state without requiring an explicit h.drain() call.
+
+local function test_xcor_auto_drains()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.forward(100)
+    -- No drain() call — xcor() must drain the queue itself
+    h.assert_near(t.xcor(), 100, 1e-4, "xcor auto-drains queue")
+    print("PASS test_xcor_auto_drains")
+end
+
+local function test_ycor_auto_drains()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.left(90)
+    t.forward(75)
+    h.assert_near(t.ycor(), 75, 1e-4, "ycor auto-drains queue")
+    print("PASS test_ycor_auto_drains")
+end
+
+local function test_distance_auto_drains()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.forward(100)
+    -- After forward(100), turtle is at (100,0); distance to origin = 100
+    h.assert_near(t.distance(0, 0), 100, 1e-4, "distance auto-drains queue")
+    print("PASS test_distance_auto_drains")
+end
+
+local function test_towards_auto_drains()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    -- Move north, then check towards origin (should be 270° = south)
+    t.left(90)
+    t.forward(100)
+    h.assert_near(t.towards(0, 0), 270, 1e-4, "towards auto-drains queue")
+    print("PASS test_towards_auto_drains")
+end
+
+local function test_filling_auto_drains()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.begin_fill()
+    -- No drain() — filling() must drain to see the queued begin_fill
+    assert(t.filling() == true, "filling() auto-drains: should be true after begin_fill")
+    print("PASS test_filling_auto_drains")
+end
+
 -- Run all tests
 test_xcor_at_origin()
 test_ycor_at_origin()
@@ -132,5 +181,10 @@ test_distance_diagonal()
 test_towards_east()
 test_towards_north()
 test_towards_west()
+test_xcor_auto_drains()
+test_ycor_auto_drains()
+test_distance_auto_drains()
+test_towards_auto_drains()
+test_filling_auto_drains()
 
 print("All query tests passed.")

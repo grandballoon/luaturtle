@@ -235,6 +235,17 @@ function Core.new(renderer)
         s.dots          = snap.dots
     end
 
+    -- Drain the action queue synchronously (instant mode, no animation).
+    -- Called by immediate query functions so they return post-queue values.
+    -- Safe with nil renderer: all renderer calls are guarded by `if self.renderer`.
+    local function drain_queue()
+        if self.current == nil and #self.actions == 0 then return end
+        local saved = self.speed_setting
+        self.speed_setting = -1
+        self.update(0)
+        self.speed_setting = saved
+    end
+
     ----------------------------------------------------------------
     -- User-facing API: all commands are queued
     ----------------------------------------------------------------
@@ -434,10 +445,6 @@ function Core.new(renderer)
         return self.pen_down
     end
 
-    function self.filling()
-        return self.fill_active
-    end
-
     function self.isvisible()
         return self.visible
     end
@@ -451,19 +458,28 @@ function Core.new(renderer)
     end
 
     function self.xcor()
+        drain_queue()
         return self.x
     end
 
     function self.ycor()
+        drain_queue()
         return self.y
     end
 
     function self.distance(x, y)
+        drain_queue()
         return distance_to(x, y)
     end
 
     function self.towards(x, y)
+        drain_queue()
         return towards(x, y)
+    end
+
+    function self.filling()
+        drain_queue()
+        return self.fill_active
     end
 
     ----------------------------------------------------------------
