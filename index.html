@@ -82,6 +82,38 @@
     align-items: center;
   }
 
+  .dropdown-container {
+    position: relative;
+  }
+
+  .dropdown-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    display: flex;
+    flex-direction: column;
+    z-index: 50;
+    min-width: 80px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  }
+
+  .dropdown-menu.hidden {
+    display: none;
+  }
+
+  .dropdown-menu button {
+    border: none;
+    border-radius: 0;
+    text-align: left;
+    padding: 6px 14px;
+  }
+
+  .dropdown-menu button:first-child { border-radius: 4px 4px 0 0; }
+  .dropdown-menu button:last-child  { border-radius: 0 0 4px 4px; }
+
   button {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 12px;
@@ -486,6 +518,13 @@
     <div class="header-controls">
       <span id="header-status"></span>
       <button id="btn-share">Share</button>
+      <div class="dropdown-container">
+        <button id="btn-export">Export &#9662;</button>
+        <div id="export-menu" class="dropdown-menu hidden">
+          <button id="export-png">PNG</button>
+          <button id="export-svg">SVG</button>
+        </div>
+      </div>
       <button id="btn-api">Commands</button>
       <button id="btn-stop">Stop</button>
       <button id="btn-run" class="primary">Run &#9654;</button>
@@ -1493,6 +1532,122 @@
     'Cmd-Enter': () => document.getElementById('btn-run').click(),
     'Tab': (cm) => cm.execCommand('insertSoftTab'),
     'Shift-Tab': (cm) => cm.execCommand('indentLess'),
+  });
+
+  // ---- Export ----
+
+  const exportMenu = document.getElementById('export-menu');
+
+  document.getElementById('btn-export').addEventListener('click', (e) => {
+    e.stopPropagation();
+    exportMenu.classList.toggle('hidden');
+  });
+
+  document.addEventListener('click', () => exportMenu.classList.add('hidden'));
+
+  function colorToCSS_svg(r, g, b, a) {
+    const ri = Math.round(r * 255);
+    const gi = Math.round(g * 255);
+    const bi = Math.round(b * 255);
+    return `rgba(${ri},${gi},${bi},${a.toFixed(3)})`;
+  }
+
+  document.getElementById('export-png').addEventListener('click', () => {
+    exportMenu.classList.add('hidden');
+    // Render a clean frame (bg + committed + no turtle head) to a temp canvas
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr;
+    const cssH = canvas.height / dpr;
+    const tmp  = document.createElement('canvas');
+    tmp.width  = canvas.width;
+    tmp.height = canvas.height;
+    const tc   = tmp.getContext('2d');
+    tc.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bg = coreGetBgColor();
+    tc.fillStyle = colorToCSS(bg[0], bg[1], bg[2], bg[3]);
+    tc.fillRect(0, 0, cssW, cssH);
+    tc.drawImage(commitCanvas, 0, 0, cssW, cssH);
+    tmp.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'turtle.png';
+      a.click();
+      URL.revokeObjectURL(url);
+    }, 'image/png');
+  });
+
+  document.getElementById('export-svg').addEventListener('click', () => {
+    exportMenu.classList.add('hidden');
+    const dpr  = window.devicePixelRatio || 1;
+    const cssW = canvas.width / dpr;
+    const cssH = canvas.height / dpr;
+    const bg   = coreGetBgColor();
+    const bgCSS = colorToCSS_svg(bg[0], bg[1], bg[2], bg[3]);
+
+    const parts = [];
+    parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}">`);
+    parts.push(`<rect width="${cssW}" height="${cssH}" fill="${bgCSS}"/>`);
+
+    // Fills
+    const fillCount = coreGetFillCount();
+    for (let i = 1; i <= fillCount; i++) {
+      const fill = coreGetFill(i);
+      if (!fill) continue;
+      const c = fill.color;
+      const verts = fill.vertices;
+      const n = Object.keys(verts).length;
+      const pts = [];
+      for (let j = 0; j < n; j++) pts.push(`${screenX(verts[j].x).toFixed(2)},${screenY(verts[j].y).toFixed(2)}`);
+      parts.push(`<polygon points="${pts.join(' ')}" fill="${colorToCSS_svg(c[0],c[1],c[2],c[3])}" stroke="none"/>`);
+    }
+
+    // Segments
+    const segCount = coreGetSegmentCount();
+    for (let i = 1; i <= segCount; i++) {
+      const s = coreGetSegment(i);
+      if (!s) continue;
+      // s: [from_x, from_y, to_x, to_y, r, g, b, a, width]
+      const x1 = screenX(s[0]).toFixed(2), y1 = screenY(s[1]).toFixed(2);
+      const x2 = screenX(s[2]).toFixed(2), y2 = screenY(s[3]).toFixed(2);
+      const col = colorToCSS_svg(s[4], s[5], s[6], s[7]);
+      const w   = (s[8] * viewScale).toFixed(2);
+      parts.push(`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`);
+    }
+
+    // Dots
+    const dotCount = coreGetDotCount();
+    for (let i = 1; i <= dotCount; i++) {
+      const d = coreGetDot(i);
+      if (!d) continue;
+      const cx = screenX(d.x).toFixed(2), cy = screenY(d.y).toFixed(2);
+      const r  = (d.size * viewScale / 2).toFixed(2);
+      const c  = d.color;
+      parts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${colorToCSS_svg(c[0],c[1],c[2],c[3])}" />`);
+    }
+
+    // Texts
+    const textCount = coreGetTextCount();
+    for (let i = 1; i <= textCount; i++) {
+      const t = coreGetText(i);
+      if (!t) continue;
+      const tx = screenX(t.x).toFixed(2), ty = screenY(t.y).toFixed(2);
+      const c  = t.color;
+      const anchor = t.align === 'center' ? 'middle' : t.align === 'right' ? 'end' : 'start';
+      const sz = (t.size * viewScale).toFixed(2);
+      const col = colorToCSS_svg(c[0], c[1], c[2], c[3]);
+      const escaped = t.text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      parts.push(`<text x="${tx}" y="${ty}" font-family="${t.font}" font-size="${sz}" fill="${col}" text-anchor="${anchor}" dominant-baseline="auto">${escaped}</text>`);
+    }
+
+    parts.push('</svg>');
+    const blob = new Blob([parts.join('\n')], {type: 'image/svg+xml'});
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'turtle.svg';
+    a.click();
+    URL.revokeObjectURL(url);
   });
 
   // ---- API overlay toggle ----
