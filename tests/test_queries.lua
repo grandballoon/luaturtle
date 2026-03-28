@@ -118,6 +118,33 @@ local function test_towards_west()
     print("PASS test_towards_west")
 end
 
+local function test_towards_south()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    h.assert_near(t.towards(0, -100), 270, 1e-4, "towards south")
+    print("PASS test_towards_south")
+end
+
+local function test_towards_from_nonorigin()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    -- turtle moves east to (100, 0); towards origin should be 180° (west)
+    t.forward(100)
+    h.drain(t)
+    h.assert_near(t.towards(0, 0), 180, 1e-4, "towards origin from (100,0)")
+    print("PASS test_towards_from_nonorigin")
+end
+
+local function test_isvisible_query()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    assert(t.isvisible() == true, "isvisible() should be true by default")
+    t.hideturtle()
+    h.drain(t)
+    assert(t.isvisible() == false, "isvisible() should be false after hideturtle")
+    print("PASS test_isvisible_query")
+end
+
 -- Verify that queries auto-drain the action queue so they reflect
 -- post-command state without requiring an explicit h.drain() call.
 
@@ -181,6 +208,9 @@ test_distance_diagonal()
 test_towards_east()
 test_towards_north()
 test_towards_west()
+test_towards_south()
+test_towards_from_nonorigin()
+test_isvisible_query()
 test_xcor_auto_drains()
 test_ycor_auto_drains()
 test_distance_auto_drains()

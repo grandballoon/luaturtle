@@ -156,6 +156,25 @@ local function test_reset_resets_fills()
     print("PASS test_reset_resets_fills")
 end
 
+-- setfillcolor accepts named color strings
+local function test_setfillcolor_named_color()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.setfillcolor("blue")
+    t.begin_fill()
+    t.forward(100)
+    t.left(90)
+    t.forward(100)
+    t.left(90)
+    t.forward(100)
+    t.end_fill()
+    h.drain(t)
+    local c = t.fills[1].color
+    h.assert_near(c[1], 0, 1e-4, "fill r should be 0 (blue)")
+    h.assert_near(c[3], 1, 1e-4, "fill b should be 1 (blue)")
+    print("PASS test_setfillcolor_named_color")
+end
+
 -- Run all tests
 test_fill_commits_to_renderer()
 test_fill_vertex_count()
@@ -166,5 +185,6 @@ test_fill_inactive_after_end_fill()
 test_overlapping_begin_fill_resets_vertices()
 test_clear_resets_fills()
 test_reset_resets_fills()
+test_setfillcolor_named_color()
 
 print("All fill tests passed.")

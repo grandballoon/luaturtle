@@ -169,6 +169,17 @@ local function test_speed_unknown_name_errors()
     print("PASS test_speed_unknown_name_errors")
 end
 
+-- bgcolor accepts named color strings
+local function test_bgcolor_named_color()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.bgcolor("blue")
+    h.drain(t)
+    h.assert_near(t.bg_color[1], 0, 1e-4, "bg r should be 0 (blue)")
+    h.assert_near(t.bg_color[3], 1, 1e-4, "bg b should be 1 (blue)")
+    print("PASS test_bgcolor_named_color")
+end
+
 -- Run all tests
 test_reset_clears_position()
 test_reset_restores_pen_state()
@@ -183,5 +194,6 @@ test_isdown_query_is_immediate()
 test_speed_named_constants()
 test_instant_drains_in_one_update()
 test_speed_unknown_name_errors()
+test_bgcolor_named_color()
 
 print("All reset/speed/query tests passed.")

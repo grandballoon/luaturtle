@@ -158,4 +158,211 @@ test_undo_arc_is_one_command()
 test_undo_bgcolor()
 test_undo_hideturtle()
 
+-- undo of dot removes it from the dots log
+local function test_undo_dot()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.dot(10, "red")
+    t.undo()
+    h.drain(t)
+    assert(#t.dots == 0, "dots should be empty after undoing dot, got " .. #t.dots)
+    print("PASS test_undo_dot")
+end
+
+-- undo of text removes it from the texts log
+local function test_undo_text()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.text("hello")
+    t.undo()
+    h.drain(t)
+    assert(#t.texts == 0, "texts should be empty after undoing text, got " .. #t.texts)
+    print("PASS test_undo_text")
+end
+
+-- undo of teleport restores position
+local function test_undo_teleport()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.teleport(100, 200)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.x, 0, 1e-4, "x should be 0 after undoing teleport")
+    h.assert_near(t.y, 0, 1e-4, "y should be 0 after undoing teleport")
+    print("PASS test_undo_teleport")
+end
+
+-- undo of setx counts as one command and restores x
+local function test_undo_setx()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.setx(150)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.x, 0, 1e-4, "x should be 0 after undoing setx")
+    h.assert_near(t.y, 0, 1e-4, "y should be unchanged after undoing setx")
+    assert(#t.undo_stack == 0, "undo stack should be empty after single undo")
+    print("PASS test_undo_setx")
+end
+
+-- undo of sety counts as one command and restores y
+local function test_undo_sety()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.sety(75)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.y, 0, 1e-4, "y should be 0 after undoing sety")
+    h.assert_near(t.x, 0, 1e-4, "x should be unchanged after undoing sety")
+    assert(#t.undo_stack == 0, "undo stack should be empty after single undo")
+    print("PASS test_undo_sety")
+end
+
+-- undo of color() restores both pen and fill colors
+local function test_undo_color()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.setfillcolor(0, 1, 0, 1)  -- green fill
+    t.color("red")               -- sets both pen and fill to red
+    t.undo()                     -- undoes color(), not setfillcolor()
+    h.drain(t)
+    -- pen should be back to white (default)
+    h.assert_near(t.pen_color[1], 1, 1e-4, "pen r should be restored to 1 (white)")
+    h.assert_near(t.pen_color[2], 1, 1e-4, "pen g should be restored to 1 (white)")
+    -- fill should be back to green
+    h.assert_near(t.fill_color[2], 1, 1e-4, "fill g should be restored to 1 (green)")
+    h.assert_near(t.fill_color[1], 0, 1e-4, "fill r should be restored to 0 (green)")
+    print("PASS test_undo_color")
+end
+
+-- undo of setfillcolor restores fill_color to previous value (nil by default)
+local function test_undo_setfillcolor()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.setfillcolor(1, 0, 0, 1)
+    t.undo()
+    h.drain(t)
+    assert(t.fill_color == nil, "fill_color should be nil after undoing setfillcolor")
+    print("PASS test_undo_setfillcolor")
+end
+
+-- undo of pendown restores pen_down to false
+local function test_undo_pendown()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.penup()
+    t.pendown()
+    t.undo()
+    h.drain(t)
+    assert(t.pen_down == false, "pen should be up after undoing pendown")
+    print("PASS test_undo_pendown")
+end
+
+-- undo of pensize restores pen_size
+local function test_undo_pensize()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    local orig = t.pen_size
+    t.pensize(10)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.pen_size, orig, 1e-4, "pen_size should be restored after undo")
+    print("PASS test_undo_pensize")
+end
+
+-- undo of speed() restores speed_setting
+local function test_undo_speed()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    local orig = t.speed_setting
+    t.speed(10)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.speed_setting, orig, 1e-4, "speed_setting should be restored after undo")
+    print("PASS test_undo_speed")
+end
+
+-- undo of showturtle restores visible to false
+local function test_undo_showturtle()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.hideturtle()
+    t.showturtle()
+    t.undo()
+    h.drain(t)
+    assert(t.visible == false, "turtle should be hidden after undoing showturtle")
+    print("PASS test_undo_showturtle")
+end
+
+-- undo of begin_fill restores fill_active to false
+local function test_undo_begin_fill()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.begin_fill()
+    t.undo()
+    h.drain(t)
+    assert(t.fill_active == false, "fill should be inactive after undoing begin_fill")
+    print("PASS test_undo_begin_fill")
+end
+
+-- undo of setpos counts as one command
+local function test_undo_setpos_is_one_command()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.setpos(100, 100)
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.x, 0, 1e-4, "x should be 0 after undoing setpos")
+    h.assert_near(t.y, 0, 1e-4, "y should be 0 after undoing setpos")
+    assert(#t.undo_stack == 0, "undo stack should be empty after single undo")
+    print("PASS test_undo_setpos_is_one_command")
+end
+
+-- undo of home counts as one command, restores pre-home position and heading
+local function test_undo_home_is_one_command()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.forward(100)
+    t.left(45)
+    t.home()
+    t.undo()  -- undoes home only
+    h.drain(t)
+    h.assert_near(t.x, 100, 1e-4, "x should be 100 after undoing home")
+    h.assert_near(t.angle, 45, 1e-4, "angle should be 45 after undoing home")
+    assert(#t.undo_stack == 2, "undo stack should have 2 entries (forward and left)")
+    print("PASS test_undo_home_is_one_command")
+end
+
+-- undo of reset restores position, pen, and segments
+local function test_undo_reset()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.forward(100)
+    t.pencolor("red")
+    t.reset()
+    t.undo()
+    h.drain(t)
+    h.assert_near(t.x, 100, 1e-4, "x should be restored after undoing reset")
+    h.assert_near(t.pen_color[1], 1, 1e-4, "pen r should be red after undoing reset")
+    h.assert_near(t.pen_color[2], 0, 1e-4, "pen g should be 0 (red) after undoing reset")
+    assert(#t.segments == 1, "segments should be restored after undoing reset")
+    print("PASS test_undo_reset")
+end
+
+test_undo_dot()
+test_undo_text()
+test_undo_teleport()
+test_undo_setx()
+test_undo_sety()
+test_undo_color()
+test_undo_setfillcolor()
+test_undo_pendown()
+test_undo_pensize()
+test_undo_speed()
+test_undo_showturtle()
+test_undo_begin_fill()
+test_undo_setpos_is_one_command()
+test_undo_home_is_one_command()
+test_undo_reset()
+
 print("All undo tests passed.")
