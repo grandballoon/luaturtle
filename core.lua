@@ -65,12 +65,12 @@ function Core.new(renderer)
 
     -- movement speed
     local function move_speed()
-        if self.speed_setting == 0 then return math.huge end
+        if self.speed_setting <= 0 then return math.huge end
         return self.base_move_speed * self.speed_setting
     end
 
     local function turn_speed()
-        if self.speed_setting == 0 then return math.huge end
+        if self.speed_setting <= 0 then return math.huge end
         return self.base_turn_speed * self.speed_setting
     end
 
@@ -398,9 +398,24 @@ function Core.new(renderer)
 
     -- Animation
 
+    local SPEED_NAMES = {
+        slow    = 1,
+        medium  = 5,
+        fast    = 7,
+        faster  = 9,
+        fastest = 0,   -- max animation speed: each action completes in one frame
+        instant = -1,  -- no animation: entire queue drains in one update() call
+    }
+
     function self.speed(n)
+        if type(n) == "string" then
+            n = SPEED_NAMES[n] or SPEED_NAMES[n:lower()]
+            if n == nil then
+                error("unknown speed name. Use a number 0-10 or: slow, medium, fast, faster, fastest, instant", 2)
+            end
+        end
         if type(n) ~= "number" then return end
-        table.insert(self.actions, {type = "speed", value = math.max(0, math.min(10, n))})
+        table.insert(self.actions, {type = "speed", value = math.max(-1, math.min(10, n))})
     end
 
     ----------------------------------------------------------------
@@ -458,6 +473,7 @@ function Core.new(renderer)
     ----------------------------------------------------------------
 
     function self.update(dt)
+        repeat
         -- Phase 1: consume all instant actions at the front of the queue.
         -- These must be processed in order before any animated action,
         -- so that state changes (pencolor, penup, etc.) apply at the
@@ -725,6 +741,8 @@ function Core.new(renderer)
                 self.current = nil
             end
         end
+        -- In instant mode, keep draining until the queue is empty.
+        until self.speed_setting ~= -1 or (self.current == nil and #self.actions == 0)
     end
 
     ----------------------------------------------------------------
