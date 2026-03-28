@@ -134,8 +134,8 @@ local function test_speed_named_constants()
         {name = "medium",  val = 5},
         {name = "fast",    val = 7},
         {name = "faster",  val = 9},
-        {name = "fastest", val = 10},
-        {name = "instant", val = 0},
+        {name = "fastest", val = 0},
+        {name = "instant", val = -1},
     }
     for _, c in ipairs(cases) do
         t.speed(c.name)
@@ -145,6 +145,19 @@ local function test_speed_named_constants()
             ", got " .. t.speed_setting)
     end
     print("PASS test_speed_named_constants")
+end
+
+local function test_instant_drains_in_one_update()
+    local r = h.make_test_renderer()
+    local t = Core.new(r)
+    t.speed("instant")
+    for i = 1, 20 do t.forward(10) end
+    -- One update call should drain all 20 moves
+    t.update(1/60)
+    assert(t.current == nil and #t.actions == 0,
+        "instant mode should drain entire queue in one update()")
+    assert(#t.segments == 20, "all 20 segments should be committed, got " .. #t.segments)
+    print("PASS test_instant_drains_in_one_update")
 end
 
 local function test_speed_unknown_name_errors()
@@ -168,6 +181,7 @@ test_bgcolor_notifies_renderer()
 test_position_query_is_immediate()
 test_isdown_query_is_immediate()
 test_speed_named_constants()
+test_instant_drains_in_one_update()
 test_speed_unknown_name_errors()
 
 print("All reset/speed/query tests passed.")
