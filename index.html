@@ -1169,7 +1169,7 @@ button {
     ctx.restore();
   }
 
-  function renderFrame(state, bgColor, previewLine) {
+  function renderFrame(allStates, bgColor, allPreviewLines) {
     const w = canvas.width / (window.devicePixelRatio || 1);
     const h = canvas.height / (window.devicePixelRatio || 1);
 
@@ -1185,36 +1185,40 @@ button {
       ctx.drawImage(commitCanvas, 0, 0, w, h);
     }
 
-    // Preview line (in-progress move)
-    if (previewLine) {
-      ctx.beginPath();
-      ctx.moveTo(screenX(previewLine[0]), screenY(previewLine[1]));
-      ctx.lineTo(screenX(previewLine[2]), screenY(previewLine[3]));
-      ctx.strokeStyle = colorToCSS(previewLine[4], previewLine[5],
-                                   previewLine[6], previewLine[7]);
-      ctx.lineWidth = previewLine[8] * viewScale;
-      ctx.lineCap = 'round';
-      ctx.stroke();
+    // Preview lines (in-progress moves, one per turtle)
+    if (allPreviewLines) {
+      for (const pl of Object.values(allPreviewLines)) {
+        if (!pl || pl[0] == null) continue;
+        ctx.beginPath();
+        ctx.moveTo(screenX(pl[0]), screenY(pl[1]));
+        ctx.lineTo(screenX(pl[2]), screenY(pl[3]));
+        ctx.strokeStyle = colorToCSS(pl[4], pl[5], pl[6], pl[7]);
+        ctx.lineWidth = pl[8] * viewScale;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
     }
 
-    // Turtle head
-    if (state.visible) {
-      const sx = screenX(state.x);
-      const sy = screenY(state.y);
-      const screenAngle = -state.angle * Math.PI / 180;
-
-      ctx.save();
-      ctx.translate(sx, sy);
-      ctx.rotate(screenAngle);
-      const s = 10 * viewScale;
-      ctx.beginPath();
-      ctx.moveTo(s, 0);
-      ctx.lineTo(-s * 0.6, s * 0.6);
-      ctx.lineTo(-s * 0.6, -s * 0.6);
-      ctx.closePath();
-      ctx.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
-      ctx.fill();
-      ctx.restore();
+    // Turtle heads (one per live turtle)
+    if (allStates) {
+      for (const state of Object.values(allStates)) {
+        if (!state || !state.visible) continue;
+        const sx = screenX(state.x);
+        const sy = screenY(state.y);
+        const screenAngle = -state.angle * Math.PI / 180;
+        ctx.save();
+        ctx.translate(sx, sy);
+        ctx.rotate(screenAngle);
+        const s = 10 * viewScale;
+        ctx.beginPath();
+        ctx.moveTo(s, 0);
+        ctx.lineTo(-s * 0.6, s * 0.6);
+        ctx.lineTo(-s * 0.6, -s * 0.6);
+        ctx.closePath();
+        ctx.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
+        ctx.fill();
+        ctx.restore();
+      }
     }
   }
 
@@ -1224,7 +1228,8 @@ button {
 
   let lua = null;
   let coreUpdate = null;
-  let coreGetTurtleState = null;
+  let coreGetAllTurtleStates = null;
+  let coreGetAllPreviewLines = null;
   let coreGetBgColor = null;
   let coreGetSegmentCount = null;
   let coreGetSegment = null;
@@ -1234,7 +1239,6 @@ button {
   let coreGetText = null;
   let coreGetDotCount = null;
   let coreGetDot = null;
-  let coreGetPreviewLine = null;
   let coreIsBusy = null;
   let coreInterrupt = null;
   let coreDrainPrint = null;
@@ -1273,9 +1277,17 @@ button {
       end
 
       -- Hard reset: wipe all state back to factory defaults.
-      -- Called by JS before running new user code and on Stop.
+      -- Discards extra turtles; restores canvas and default turtle to initial state.
+      -- Called by JS before running new user code.
       _bridge_hard_reset = function()
-        turtle.interrupt()
+        for _, t in pairs(canvas.turtles) do t.interrupt() end
+        canvas.draw_log      = {}
+        canvas.active_from   = 0
+        canvas.bg_color      = {0.07, 0.07, 0.07, 1}
+        canvas.turtles       = {[1] = turtle}
+        canvas._next_id      = 2
+        turtle.actions       = {}
+        turtle.current       = nil
         turtle.x             = 0
         turtle.y             = 0
         turtle.angle         = 0
@@ -1288,13 +1300,31 @@ button {
         turtle.fill_color    = nil
         turtle.visible       = true
         turtle.undo_stack    = {}
-        canvas.draw_log      = {}
-        canvas.active_from   = 0
-        canvas.bg_color      = {0.07, 0.07, 0.07, 1}
       end
 
-      _bridge_update          = function(dt) return turtle.update(dt) end
-      _bridge_turtle_state    = function() return turtle.get_turtle_state() end
+      _bridge_update = function(dt)
+        for _, t in pairs(canvas.turtles) do t.update(dt) end
+      end
+
+      -- Returns {id: state} for all live turtles.
+      _bridge_all_turtle_states = function()
+        local result = {}
+        for id, t in pairs(canvas.turtles) do
+          result[id] = t.get_turtle_state()
+        end
+        return result
+      end
+
+      -- Returns {id: preview_line} for turtles that have an in-progress move.
+      _bridge_all_preview_lines = function()
+        local result = {}
+        for id, t in pairs(canvas.turtles) do
+          local pl = t.get_preview_line()
+          if pl then result[id] = pl end
+        end
+        return result
+      end
+
       _bridge_bg_color        = function() return turtle.get_bg_color() end
       _bridge_segment_count   = function() return turtle.get_segment_count() end
       _bridge_segment         = function(i) return turtle.get_segment(i) end
@@ -1304,27 +1334,33 @@ button {
       _bridge_dot             = function(i) return turtle.get_dot(i) end
       _bridge_text_count      = function() return turtle.get_text_count() end
       _bridge_text            = function(i) return turtle.get_text(i) end
-      _bridge_preview_line    = function() return turtle.get_preview_line() end
-      _bridge_is_busy         = function() return turtle.is_busy() end
-      _bridge_interrupt       = function() return turtle.interrupt() end
+      _bridge_is_busy         = function()
+        for _, t in pairs(canvas.turtles) do
+          if t.is_busy() == 1 then return 1 end
+        end
+        return 0
+      end
+      _bridge_interrupt       = function()
+        for _, t in pairs(canvas.turtles) do t.interrupt() end
+      end
     `);
 
-    coreUpdate          = lua.global.get('_bridge_update');
-    coreGetTurtleState  = lua.global.get('_bridge_turtle_state');
-    coreGetBgColor      = lua.global.get('_bridge_bg_color');
-    coreGetSegmentCount = lua.global.get('_bridge_segment_count');
-    coreGetSegment      = lua.global.get('_bridge_segment');
-    coreGetFillCount    = lua.global.get('_bridge_fill_count');
-    coreGetFill         = lua.global.get('_bridge_fill');
-    coreGetTextCount    = lua.global.get('_bridge_text_count');
-    coreGetText         = lua.global.get('_bridge_text');
-    coreGetDotCount     = lua.global.get('_bridge_dot_count');
-    coreGetDot          = lua.global.get('_bridge_dot');
-    coreGetPreviewLine  = lua.global.get('_bridge_preview_line');
-    coreIsBusy          = lua.global.get('_bridge_is_busy');
-    coreInterrupt       = lua.global.get('_bridge_interrupt');
-    coreDrainPrint      = lua.global.get('_bridge_drain_print');
-    coreHardReset       = lua.global.get('_bridge_hard_reset');
+    coreUpdate              = lua.global.get('_bridge_update');
+    coreGetAllTurtleStates  = lua.global.get('_bridge_all_turtle_states');
+    coreGetAllPreviewLines  = lua.global.get('_bridge_all_preview_lines');
+    coreGetBgColor          = lua.global.get('_bridge_bg_color');
+    coreGetSegmentCount     = lua.global.get('_bridge_segment_count');
+    coreGetSegment          = lua.global.get('_bridge_segment');
+    coreGetFillCount        = lua.global.get('_bridge_fill_count');
+    coreGetFill             = lua.global.get('_bridge_fill');
+    coreGetTextCount        = lua.global.get('_bridge_text_count');
+    coreGetText             = lua.global.get('_bridge_text');
+    coreGetDotCount         = lua.global.get('_bridge_dot_count');
+    coreGetDot              = lua.global.get('_bridge_dot');
+    coreIsBusy              = lua.global.get('_bridge_is_busy');
+    coreInterrupt           = lua.global.get('_bridge_interrupt');
+    coreDrainPrint          = lua.global.get('_bridge_drain_print');
+    coreHardReset           = lua.global.get('_bridge_hard_reset');
 
     setStatus('Ready \u2014 click Run or press Ctrl+Enter');
 
@@ -1412,6 +1448,12 @@ button {
           dot          = function(...) return turtle.dot(...)          end,
           text         = function(...) return turtle.text(...)         end,
           undo         = function(...) return turtle.undo(...)         end,
+
+          -- Turtle(): create a new turtle and return it.
+          -- All turtle methods are available directly on the returned object:
+          --   t2 = Turtle()
+          --   t2.forward(100)
+          Turtle = function() return canvas.create_turtle() end,
         }
 
         local chunk, err = load(user_code, "user_code", "t", env)
@@ -1502,16 +1544,11 @@ button {
         renderIncrementalDots();
       }
 
-      const state = coreGetTurtleState();
-      const bgColor = coreGetBgColor();
+      const allStates       = coreGetAllTurtleStates();
+      const allPreviewLines = coreGetAllPreviewLines();
+      const bgColor         = coreGetBgColor();
 
-      let previewLine = null;
-      const pv = coreGetPreviewLine();
-      if (pv != null && pv[0] != null) {
-        previewLine = pv;
-      }
-
-      renderFrame(state, bgColor, previewLine);
+      renderFrame(allStates, bgColor, allPreviewLines);
 
       const busy = coreIsBusy();
       if (busy === 0 && isRunning) {
@@ -1570,23 +1607,26 @@ button {
     tc.fillStyle = colorToCSS(bg[0], bg[1], bg[2], bg[3]);
     tc.fillRect(0, 0, cssW, cssH);
     tc.drawImage(commitCanvas, 0, 0, cssW, cssH);
-    const state = coreGetTurtleState();
-    if (state.visible) {
-      const sx = screenX(state.x);
-      const sy = screenY(state.y);
-      const screenAngle = -state.angle * Math.PI / 180;
-      tc.save();
-      tc.translate(sx, sy);
-      tc.rotate(screenAngle);
-      const s = 10 * viewScale;
-      tc.beginPath();
-      tc.moveTo(s, 0);
-      tc.lineTo(-s * 0.6, s * 0.6);
-      tc.lineTo(-s * 0.6, -s * 0.6);
-      tc.closePath();
-      tc.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
-      tc.fill();
-      tc.restore();
+    const allStates = coreGetAllTurtleStates();
+    if (allStates) {
+      for (const state of Object.values(allStates)) {
+        if (!state || !state.visible) continue;
+        const sx = screenX(state.x);
+        const sy = screenY(state.y);
+        const screenAngle = -state.angle * Math.PI / 180;
+        tc.save();
+        tc.translate(sx, sy);
+        tc.rotate(screenAngle);
+        const s = 10 * viewScale;
+        tc.beginPath();
+        tc.moveTo(s, 0);
+        tc.lineTo(-s * 0.6, s * 0.6);
+        tc.lineTo(-s * 0.6, -s * 0.6);
+        tc.closePath();
+        tc.fillStyle = colorToCSS(0.2, 0.9, 0.4, 1);
+        tc.fill();
+        tc.restore();
+      }
     }
     tmp.toBlob(blob => {
       const url = URL.createObjectURL(blob);

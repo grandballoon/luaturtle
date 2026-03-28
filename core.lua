@@ -6,6 +6,8 @@ local Core = {}
 
 local function make_turtle(canvas, id)
     local self = {
+        id = id,            -- stable turtle ID; 1 for the default turtle
+
         -- position and heading in turtle-space (center origin, y-up)
         x = 0,
         y = 0,
@@ -218,9 +220,22 @@ local function make_turtle(canvas, id)
         s.fill_vertices = snap.fill_vertices
         s.fill_color    = snap.fill_color
         s.visible       = snap.visible
-        -- restore canvas
-        while #canvas.draw_log > snap.draw_log_len do
-            table.remove(canvas.draw_log)
+        -- Rebuild draw_log: keep all events up to snap.draw_log_len, plus
+        -- any events from OTHER turtles added after that point.
+        -- This turtle's own events after the snapshot are discarded (undone).
+        -- With a single turtle this is equivalent to simple truncation.
+        if #canvas.draw_log > snap.draw_log_len then
+            local new_log = {}
+            for i = 1, snap.draw_log_len do
+                new_log[i] = canvas.draw_log[i]
+            end
+            for i = snap.draw_log_len + 1, #canvas.draw_log do
+                local e = canvas.draw_log[i]
+                if e.turtle_id ~= id then
+                    table.insert(new_log, e)
+                end
+            end
+            canvas.draw_log = new_log
         end
         canvas.active_from = snap.active_from
         canvas.bg_color    = snap.bg_color
@@ -906,9 +921,21 @@ function Core.new()
         draw_log    = {},
         bg_color    = {0.07, 0.07, 0.07, 1},
         active_from = 0,
+        turtles     = {},   -- id -> turtle; all live turtles
+        _next_id    = 1,
     }
-    local t = make_turtle(canvas, 1)
-    canvas.turtle = t
+
+    -- create_turtle: make a new turtle, register it, and return it.
+    function canvas.create_turtle()
+        local id = canvas._next_id
+        canvas._next_id = canvas._next_id + 1
+        local t = make_turtle(canvas, id)
+        canvas.turtles[id] = t
+        return t
+    end
+
+    local t = canvas.create_turtle()
+    canvas.turtle = t   -- convenience alias for turtle 1
     return canvas
 end
 
