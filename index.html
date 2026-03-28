@@ -355,6 +355,11 @@ button {
     min-width: 28px;
   }
 
+  #btn-grid.active {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
   #zoom-label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
@@ -518,6 +523,7 @@ button {
         <button id="btn-zoom-out" title="Zoom out">&minus;</button>
         <button id="btn-zoom-reset" title="Reset view">Reset</button>
         <span id="zoom-label">100%</span>
+        <button id="btn-grid" title="Toggle grid">Grid</button>
       </div>
       <canvas id="turtle-canvas"></canvas>
       <div id="api-overlay">
@@ -1116,6 +1122,53 @@ button {
     renderedDotCount = count;
   }
 
+  // ---- Grid overlay ----
+
+  let gridVisible = localStorage.getItem('luaturtle-grid') === 'true';
+
+  function updateGridButton() {
+    document.getElementById('btn-grid').classList.toggle('active', gridVisible);
+  }
+  updateGridButton();
+
+  document.getElementById('btn-grid').addEventListener('click', () => {
+    gridVisible = !gridVisible;
+    localStorage.setItem('luaturtle-grid', gridVisible);
+    updateGridButton();
+  });
+
+  function drawGrid(w, h) {
+    // Fixed screen-space pixel pitch: grid lines are always ~60px apart.
+    // Anchored so one line always passes through the origin (0,0 turtle-space).
+    // No snapping on zoom — the density is purely visual.
+    const pitch = 60;
+    const cx = screenX(0);
+    const cy = screenY(0);
+
+    ctx.save();
+    ctx.lineWidth = 1;
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.09)';
+    ctx.beginPath();
+    for (let x = ((cx % pitch) + pitch) % pitch; x <= w; x += pitch) {
+      ctx.moveTo(x, 0); ctx.lineTo(x, h);
+    }
+    for (let y = ((cy % pitch) + pitch) % pitch; y <= h; y += pitch) {
+      ctx.moveTo(0, y); ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(cx, 0); ctx.lineTo(cx, h);
+    ctx.moveTo(0, cy); ctx.lineTo(w, cy);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   function renderFrame(state, bgColor, previewLine) {
     const w = canvas.width / (window.devicePixelRatio || 1);
     const h = canvas.height / (window.devicePixelRatio || 1);
@@ -1123,6 +1176,9 @@ button {
     // Background
     ctx.fillStyle = colorToCSS(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
     ctx.fillRect(0, 0, w, h);
+
+    // Grid overlay (drawn behind committed content)
+    if (gridVisible) drawGrid(w, h);
 
     // Committed segments and fills
     if (commitCanvas) {
