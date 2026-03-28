@@ -1238,6 +1238,7 @@ button {
   let coreIsBusy = null;
   let coreInterrupt = null;
   let coreDrainPrint = null;
+  let coreHardReset = null;
 
   try {
     const factory = new wasmoon.LuaFactory('glue.wasm');
@@ -1254,7 +1255,8 @@ button {
 
     await lua.doString(`
       Core = require("core")
-      turtle = Core.new(nil)
+      canvas = Core.new()
+      turtle = canvas.turtle
 
       -- Intercept print() to route output to the terminal panel.
       _print_output = {}
@@ -1268,6 +1270,27 @@ button {
         local out = _print_output
         _print_output = {}
         return out
+      end
+
+      -- Hard reset: wipe all state back to factory defaults.
+      -- Called by JS before running new user code and on Stop.
+      _bridge_hard_reset = function()
+        turtle.interrupt()
+        turtle.x             = 0
+        turtle.y             = 0
+        turtle.angle         = 0
+        turtle.pen_down      = true
+        turtle.pen_color     = {1, 1, 1, 1}
+        turtle.pen_size      = 2
+        turtle.speed_setting = 5
+        turtle.fill_active   = false
+        turtle.fill_vertices = {}
+        turtle.fill_color    = nil
+        turtle.visible       = true
+        turtle.undo_stack    = {}
+        canvas.draw_log      = {}
+        canvas.active_from   = 0
+        canvas.bg_color      = {0.07, 0.07, 0.07, 1}
       end
 
       _bridge_update          = function(dt) return turtle.update(dt) end
@@ -1301,6 +1324,7 @@ button {
     coreIsBusy          = lua.global.get('_bridge_is_busy');
     coreInterrupt       = lua.global.get('_bridge_interrupt');
     coreDrainPrint      = lua.global.get('_bridge_drain_print');
+    coreHardReset       = lua.global.get('_bridge_hard_reset');
 
     setStatus('Ready \u2014 click Run or press Ctrl+Enter');
 
@@ -1315,28 +1339,7 @@ button {
   async function runUserCode() {
     const code = editor.getValue();
 
-    coreInterrupt();
-
-    await lua.doString(`
-      turtle.x = 0
-      turtle.y = 0
-      turtle.angle = 0
-      turtle.pen_down = true
-      turtle.pen_color = {1, 1, 1, 1}
-      turtle.pen_size = 2
-      turtle.bg_color = {0.07, 0.07, 0.07, 1}
-      turtle.speed_setting = 5
-      turtle.actions = {}
-      turtle.current = nil
-      turtle.segments = {}
-      turtle.fills = {}
-      turtle.fill_active = false
-      turtle.fill_vertices = {}
-      turtle.fill_color = nil
-      turtle.texts = {}
-      turtle.dots = {}
-      turtle.visible = true
-    `);
+    coreHardReset();
 
     renderedSegmentCount = 0;
     renderedFillCount = 0;

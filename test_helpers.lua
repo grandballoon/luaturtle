@@ -3,39 +3,43 @@
 
 local helpers = {}
 
--- Minimal renderer stub that records notifications.
-function helpers.make_test_renderer()
-    local r = {
-        segments = {},
-        clears = 0,
-        bgcolors = {},
-        fills = {},
-    }
-    function r:commit_segment(seg)
-        table.insert(self.segments, seg)
-    end
-    function r:commit_clear()
-        self.clears = self.clears + 1
-    end
-    function r:set_bgcolor(color)
-        table.insert(self.bgcolors, color)
-    end
-    function r:commit_fill(vertices, color)
-        table.insert(self.fills, {vertices = vertices, color = color})
-    end
-    return r
-end
-
 -- Drain the action queue to completion.
 -- Uses a large dt by default so all actions complete instantly.
 -- Errors if the queue doesn't empty within max_iterations.
-function helpers.drain(core, dt)
+function helpers.drain(turtle, dt)
     dt = dt or 1000
     for i = 1, 10000 do
-        core.update(dt)
-        if not core.current and #core.actions == 0 then return end
+        turtle.update(dt)
+        if not turtle.current and #turtle.actions == 0 then return end
     end
     error("queue did not drain after 10000 iterations")
+end
+
+-- Returns all draw events of the given type from the ACTIVE portion of the
+-- canvas draw_log (i.e. events at index > canvas.active_from, 1-based).
+-- Use this for assertions after forward/text/dot/fill operations.
+function helpers.active_events(canvas, etype)
+    local result = {}
+    for i = canvas.active_from + 1, #canvas.draw_log do
+        local e = canvas.draw_log[i]
+        if e.type == etype then
+            table.insert(result, e)
+        end
+    end
+    return result
+end
+
+-- Returns ALL draw events of the given type from the entire draw_log,
+-- including archived events before active_from.
+-- Use this to count clears or inspect history.
+function helpers.all_events(canvas, etype)
+    local result = {}
+    for _, e in ipairs(canvas.draw_log) do
+        if e.type == etype then
+            table.insert(result, e)
+        end
+    end
+    return result
 end
 
 -- Assert two numbers are within tolerance of each other.

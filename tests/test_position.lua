@@ -7,8 +7,8 @@ local Core = require("core")
 local h = require("test_helpers")
 
 local function test_forward_moves_east()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     h.drain(t)
     h.assert_near(t.x, 100, 1e-4, "x after forward(100)")
@@ -17,8 +17,8 @@ local function test_forward_moves_east()
 end
 
 local function test_forward_then_left_moves_north()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.left(90)
     t.forward(100)
@@ -29,8 +29,8 @@ local function test_forward_then_left_moves_north()
 end
 
 local function test_back_moves_west()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.back(50)
     h.drain(t)
     h.assert_near(t.x, -50, 1e-4, "x after back(50)")
@@ -39,8 +39,8 @@ local function test_back_moves_west()
 end
 
 local function test_setpos_reaches_target()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setpos(100, 200)
     h.drain(t)
     h.assert_near(t.x, 100, 1e-4, "x after setpos(100, 200)")
@@ -49,8 +49,8 @@ local function test_setpos_reaches_target()
 end
 
 local function test_home_returns_to_origin()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.left(45)
     t.home()
@@ -62,8 +62,8 @@ local function test_home_returns_to_origin()
 end
 
 local function test_full_circle_returns_to_start()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     local start_x = t.x
     local start_y = t.y
     t.circle(50)

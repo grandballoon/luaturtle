@@ -7,8 +7,8 @@ local Core = require("core")
 local h = require("test_helpers")
 
 local function test_reset_clears_position()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.left(45)
     t.reset()
@@ -20,8 +20,8 @@ local function test_reset_clears_position()
 end
 
 local function test_reset_restores_pen_state()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.penup()
     t.pensize(10)
     t.pencolor("red")
@@ -36,29 +36,33 @@ local function test_reset_restores_pen_state()
 end
 
 local function test_reset_clears_segments()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.forward(100)
     t.reset()
     h.drain(t)
-    assert(#t.segments == 0, "segments should be empty after reset")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 0, "segments should be empty after reset")
     print("PASS test_reset_clears_segments")
 end
 
-local function test_reset_notifies_renderer()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+local function test_reset_advances_active_from()
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.reset()
     h.drain(t)
-    assert(r.clears >= 1, "renderer should receive commit_clear after reset")
-    print("PASS test_reset_notifies_renderer")
+    -- After reset, active_from should be at the end of draw_log so no
+    -- segments from before the reset are visible in the active portion.
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 0, "no segments should be active after reset")
+    print("PASS test_reset_advances_active_from")
 end
 
 local function test_reset_restores_speed()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.speed(1)
     t.reset()
     h.drain(t)
@@ -67,20 +71,21 @@ local function test_reset_restores_speed()
 end
 
 local function test_speed_zero_completes_instantly()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.speed(0)
     t.forward(100)
     -- A single update with a tiny dt should complete the move at speed 0
     t.update(0.001)
     assert(t.current == nil, "current should be nil after speed(0) move with tiny dt")
-    assert(#t.segments == 1, "segment should be committed after speed(0) move")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 1, "segment should be committed after speed(0) move")
     print("PASS test_speed_zero_completes_instantly")
 end
 
 local function test_speed_animated_does_not_complete_instantly()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.speed(1)
     t.forward(1000)
     -- A tiny dt should not complete a long move at speed 1
@@ -89,21 +94,22 @@ local function test_speed_animated_does_not_complete_instantly()
     print("PASS test_speed_animated_does_not_complete_instantly")
 end
 
-local function test_bgcolor_notifies_renderer()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+local function test_bgcolor_emits_event()
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.bgcolor("black")
     h.drain(t)
-    assert(#r.bgcolors == 1, "renderer should receive set_bgcolor notification")
-    h.assert_near(r.bgcolors[1][1], 0, 1e-4, "bgcolor r")
-    h.assert_near(r.bgcolors[1][2], 0, 1e-4, "bgcolor g")
-    h.assert_near(r.bgcolors[1][3], 0, 1e-4, "bgcolor b")
-    print("PASS test_bgcolor_notifies_renderer")
+    local bgevents = h.active_events(canvas, "bgcolor")
+    assert(#bgevents == 1, "draw_log should contain one bgcolor event")
+    h.assert_near(bgevents[1].r, 0, 1e-4, "bgcolor r")
+    h.assert_near(bgevents[1].g, 0, 1e-4, "bgcolor g")
+    h.assert_near(bgevents[1].b, 0, 1e-4, "bgcolor b")
+    print("PASS test_bgcolor_emits_event")
 end
 
 local function test_position_query_is_immediate()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     -- queue not drained yet
     local x, y = t.position()
@@ -116,8 +122,8 @@ local function test_position_query_is_immediate()
 end
 
 local function test_isdown_query_is_immediate()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.penup()
     -- queue not drained yet
     assert(t.isdown() == true, "isdown should be true before drain")
@@ -127,8 +133,8 @@ local function test_isdown_query_is_immediate()
 end
 
 local function test_speed_named_constants()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     local cases = {
         {name = "slow",    val = 1},
         {name = "medium",  val = 5},
@@ -148,35 +154,36 @@ local function test_speed_named_constants()
 end
 
 local function test_instant_drains_in_one_update()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.speed("instant")
     for i = 1, 20 do t.forward(10) end
     -- One update call should drain all 20 moves
     t.update(1/60)
     assert(t.current == nil and #t.actions == 0,
         "instant mode should drain entire queue in one update()")
-    assert(#t.segments == 20, "all 20 segments should be committed, got " .. #t.segments)
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 20, "all 20 segments should be committed, got " .. #segs)
     print("PASS test_instant_drains_in_one_update")
 end
 
 local function test_speed_unknown_name_errors()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     local ok, err = pcall(function() t.speed("turbo") end)
     assert(not ok, "speed('turbo') should error")
     assert(err:find("unknown speed name"), "error message should mention unknown speed name")
     print("PASS test_speed_unknown_name_errors")
 end
 
--- bgcolor accepts named color strings
+-- bgcolor accepts named color strings and updates canvas.bg_color
 local function test_bgcolor_named_color()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.bgcolor("blue")
     h.drain(t)
-    h.assert_near(t.bg_color[1], 0, 1e-4, "bg r should be 0 (blue)")
-    h.assert_near(t.bg_color[3], 1, 1e-4, "bg b should be 1 (blue)")
+    h.assert_near(canvas.bg_color[1], 0, 1e-4, "bg r should be 0 (blue)")
+    h.assert_near(canvas.bg_color[3], 1, 1e-4, "bg b should be 1 (blue)")
     print("PASS test_bgcolor_named_color")
 end
 
@@ -184,11 +191,11 @@ end
 test_reset_clears_position()
 test_reset_restores_pen_state()
 test_reset_clears_segments()
-test_reset_notifies_renderer()
+test_reset_advances_active_from()
 test_reset_restores_speed()
 test_speed_zero_completes_instantly()
 test_speed_animated_does_not_complete_instantly()
-test_bgcolor_notifies_renderer()
+test_bgcolor_emits_event()
 test_position_query_is_immediate()
 test_isdown_query_is_immediate()
 test_speed_named_constants()
