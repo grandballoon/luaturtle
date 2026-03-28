@@ -1586,7 +1586,7 @@
     const bgCSS = colorToCSS_svg(bg[0], bg[1], bg[2], bg[3]);
 
     const parts = [];
-    parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}">`);
+    parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${cssW}" height="${cssH}" viewBox="0 0 ${cssW} ${cssH}" overflow="hidden">`);
     parts.push(`<rect width="${cssW}" height="${cssH}" fill="${bgCSS}"/>`);
 
     // Fills
