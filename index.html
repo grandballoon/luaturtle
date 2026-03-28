@@ -355,6 +355,11 @@ button {
     min-width: 28px;
   }
 
+  #btn-grid.active {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+  }
+
   #zoom-label {
     font-family: 'IBM Plex Mono', monospace;
     font-size: 10px;
@@ -518,6 +523,7 @@ button {
         <button id="btn-zoom-out" title="Zoom out">&minus;</button>
         <button id="btn-zoom-reset" title="Reset view">Reset</button>
         <span id="zoom-label">100%</span>
+        <button id="btn-grid" title="Toggle grid">Grid</button>
       </div>
       <canvas id="turtle-canvas"></canvas>
       <div id="api-overlay">
@@ -1116,6 +1122,69 @@ button {
     renderedDotCount = count;
   }
 
+  // ---- Grid overlay ----
+
+  let gridVisible = localStorage.getItem('luaturtle-grid') === 'true';
+
+  function updateGridButton() {
+    document.getElementById('btn-grid').classList.toggle('active', gridVisible);
+  }
+  updateGridButton();
+
+  document.getElementById('btn-grid').addEventListener('click', () => {
+    gridVisible = !gridVisible;
+    localStorage.setItem('luaturtle-grid', gridVisible);
+    updateGridButton();
+  });
+
+  function drawGrid(w, h) {
+    // Choose a grid spacing that keeps roughly 5–15 lines on screen.
+    // Work in turtle-space units, then pick the nearest "nice" interval.
+    const niceIntervals = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000];
+    const targetLines = 10;
+    const turtleSpanX = w / viewScale;
+    const rawInterval = turtleSpanX / targetLines;
+    let interval = niceIntervals[niceIntervals.length - 1];
+    for (let i = 0; i < niceIntervals.length; i++) {
+      if (niceIntervals[i] >= rawInterval) { interval = niceIntervals[i]; break; }
+    }
+
+    const turtleLeft   = viewCenterX - w / 2 / viewScale;
+    const turtleRight  = viewCenterX + w / 2 / viewScale;
+    const turtleBottom = viewCenterY - h / 2 / viewScale;
+    const turtleTop    = viewCenterY + h / 2 / viewScale;
+
+    const firstX = Math.floor(turtleLeft  / interval) * interval;
+    const firstY = Math.floor(turtleBottom / interval) * interval;
+
+    ctx.save();
+    ctx.lineWidth = 1;
+
+    // Minor grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.beginPath();
+    for (let tx = firstX; tx <= turtleRight; tx += interval) {
+      const sx = screenX(tx);
+      ctx.moveTo(sx, 0);
+      ctx.lineTo(sx, h);
+    }
+    for (let ty = firstY; ty <= turtleTop; ty += interval) {
+      const sy = screenY(ty);
+      ctx.moveTo(0, sy);
+      ctx.lineTo(w, sy);
+    }
+    ctx.stroke();
+
+    // Axes
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+    ctx.beginPath();
+    ctx.moveTo(screenX(0), 0); ctx.lineTo(screenX(0), h);  // Y axis
+    ctx.moveTo(0, screenY(0)); ctx.lineTo(w, screenY(0));  // X axis
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
   function renderFrame(state, bgColor, previewLine) {
     const w = canvas.width / (window.devicePixelRatio || 1);
     const h = canvas.height / (window.devicePixelRatio || 1);
@@ -1123,6 +1192,9 @@ button {
     // Background
     ctx.fillStyle = colorToCSS(bgColor[0], bgColor[1], bgColor[2], bgColor[3]);
     ctx.fillRect(0, 0, w, h);
+
+    // Grid overlay (drawn behind committed content)
+    if (gridVisible) drawGrid(w, h);
 
     // Committed segments and fills
     if (commitCanvas) {
