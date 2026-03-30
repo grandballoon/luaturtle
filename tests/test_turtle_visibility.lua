@@ -7,15 +7,15 @@ local Core = require("core")
 local h = require("test_helpers")
 
 local function test_visible_by_default()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     assert(t.isvisible() == true, "turtle should be visible by default")
     print("PASS test_visible_by_default")
 end
 
 local function test_hideturtle()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     h.drain(t)
     assert(t.isvisible() == false, "turtle should be invisible after hideturtle()")
@@ -23,8 +23,8 @@ local function test_hideturtle()
 end
 
 local function test_showturtle()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     t.showturtle()
     h.drain(t)
@@ -34,8 +34,8 @@ end
 
 -- hideturtle/showturtle are queued: they fire in order relative to moves.
 local function test_hideturtle_is_queued()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     -- visible should still be true before the queue drains
     assert(t.isvisible() == true, "visible should be true before queue drains")
@@ -45,18 +45,19 @@ local function test_hideturtle_is_queued()
 end
 
 local function test_visibility_does_not_affect_drawing()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     t.forward(100)
     h.drain(t)
-    assert(#t.segments == 1, "hideturtle should not prevent drawing")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 1, "hideturtle should not prevent drawing")
     print("PASS test_visibility_does_not_affect_drawing")
 end
 
 local function test_reset_restores_visibility()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     t.reset()
     h.drain(t)

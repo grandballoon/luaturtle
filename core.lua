@@ -1,11 +1,13 @@
 -- core.lua
--- Turtle state, action queue, update(dt), segment log.
+-- Turtle state, action queue, update(dt), draw_log.
 -- Host-independent: no rendering, no platform dependencies.
 
 local Core = {}
 
-function Core.new(renderer)
+local function make_turtle(canvas, id)
     local self = {
+        id = id,            -- stable turtle ID; 1 for the default turtle
+
         -- position and heading in turtle-space (center origin, y-up)
         x = 0,
         y = 0,
@@ -16,9 +18,6 @@ function Core.new(renderer)
         pen_color = {1, 1, 1, 1},
         pen_size = 2,
 
-        -- canvas
-        bg_color = {0.07, 0.07, 0.07, 1},
-
         -- animation
         speed_setting = 5,
         base_move_speed = 100,   -- px/sec at speed 1
@@ -27,9 +26,6 @@ function Core.new(renderer)
         -- action queue and current action
         actions = {},
         current = nil,
-
-        -- committed segments (append-only log)
-        segments = {},
 
         -- fill state
         -- fill_color is nil until setfillcolor() is called; nil means
@@ -40,24 +36,21 @@ function Core.new(renderer)
         fill_vertices = {},
         fill_color = nil,
 
-        -- committed fills (append-only log)
-        fills = {},
-
-        -- committed texts (append-only log)
-        texts = {},
-
-        -- committed dots (append-only log)
-        dots = {},
-
         -- turtle visibility
         visible = true,
 
-        -- undo stack: snapshots of full turtle state, one per user command
+        -- undo stack: snapshots of canvas and turtle state, one per user command
         undo_stack = {},
-
-        -- renderer (injected)
-        renderer = renderer,
     }
+
+    ----------------------------------------------------------------
+    -- emit: append a draw event to the canvas log, tagged with turtle id
+    ----------------------------------------------------------------
+
+    local function emit(event)
+        event.turtle_id = id
+        table.insert(canvas.draw_log, event)
+    end
 
     ----------------------------------------------------------------
     -- Helpers
@@ -203,16 +196,15 @@ function Core.new(renderer)
             pen_down      = s.pen_down,
             pen_color     = deep_copy(s.pen_color),
             pen_size      = s.pen_size,
-            bg_color      = deep_copy(s.bg_color),
             speed_setting = s.speed_setting,
             fill_active   = s.fill_active,
             fill_vertices = deep_copy(s.fill_vertices),
             fill_color    = deep_copy(s.fill_color),
             visible       = s.visible,
-            segments      = deep_copy(s.segments),
-            fills         = deep_copy(s.fills),
-            texts         = deep_copy(s.texts),
-            dots          = deep_copy(s.dots),
+            -- canvas snapshot
+            draw_log_len  = #canvas.draw_log,
+            active_from   = canvas.active_from,
+            bg_color      = deep_copy(canvas.bg_color),
         })
     end
 
@@ -223,21 +215,34 @@ function Core.new(renderer)
         s.pen_down      = snap.pen_down
         s.pen_color     = snap.pen_color
         s.pen_size      = snap.pen_size
-        s.bg_color      = snap.bg_color
         s.speed_setting = snap.speed_setting
         s.fill_active   = snap.fill_active
         s.fill_vertices = snap.fill_vertices
         s.fill_color    = snap.fill_color
         s.visible       = snap.visible
-        s.segments      = snap.segments
-        s.fills         = snap.fills
-        s.texts         = snap.texts
-        s.dots          = snap.dots
+        -- Rebuild draw_log: keep all events up to snap.draw_log_len, plus
+        -- any events from OTHER turtles added after that point.
+        -- This turtle's own events after the snapshot are discarded (undone).
+        -- With a single turtle this is equivalent to simple truncation.
+        if #canvas.draw_log > snap.draw_log_len then
+            local new_log = {}
+            for i = 1, snap.draw_log_len do
+                new_log[i] = canvas.draw_log[i]
+            end
+            for i = snap.draw_log_len + 1, #canvas.draw_log do
+                local e = canvas.draw_log[i]
+                if e.turtle_id ~= id then
+                    table.insert(new_log, e)
+                end
+            end
+            canvas.draw_log = new_log
+        end
+        canvas.active_from = snap.active_from
+        canvas.bg_color    = snap.bg_color
     end
 
     -- Drain the action queue synchronously (instant mode, no animation).
     -- Called by immediate query functions so they return post-queue values.
-    -- Safe with nil renderer: all renderer calls are guarded by `if self.renderer`.
     local function drain_queue()
         if self.current == nil and #self.actions == 0 then return end
         local saved = self.speed_setting
@@ -508,9 +513,6 @@ function Core.new(renderer)
                 local snap = table.remove(self.undo_stack)
                 if snap then
                     restore_snapshot(self, snap)
-                    if self.renderer then
-                        self.renderer:set_bgcolor(self.bg_color)
-                    end
                 end
 
             elseif next_action.type == "pencolor" then
@@ -525,12 +527,12 @@ function Core.new(renderer)
                                    next_action.fill_b, next_action.fill_a}
 
             elseif next_action.type == "bgcolor" then
-                self.bg_color = normalize_color(
+                canvas.bg_color = normalize_color(
                     next_action.r, next_action.g, next_action.b, next_action.a
                 )
-                if self.renderer then
-                    self.renderer:set_bgcolor(self.bg_color)
-                end
+                emit({type = "bgcolor",
+                      r = canvas.bg_color[1], g = canvas.bg_color[2],
+                      b = canvas.bg_color[3], a = canvas.bg_color[4]})
 
             elseif next_action.type == "penup" then
                 self.pen_down = false
@@ -566,21 +568,23 @@ function Core.new(renderer)
                         self.pen_color[1], self.pen_color[2],
                         self.pen_color[3], self.pen_color[4],
                     }
-                    table.insert(self.fills, {
+                    emit({
+                        type     = "fill",
                         vertices = self.fill_vertices,
-                        color = color,
+                        color    = color,
                     })
                 end
                 self.fill_active = false
                 self.fill_vertices = {}
 
             elseif next_action.type == "text" then
-                table.insert(self.texts, {
-                    x = self.x,
-                    y = self.y,
-                    text = next_action.text,
-                    font = next_action.font,
-                    size = next_action.size,
+                emit({
+                    type  = "text",
+                    x     = self.x,
+                    y     = self.y,
+                    text  = next_action.text,
+                    font  = next_action.font,
+                    size  = next_action.size,
                     align = next_action.align,
                     color = {
                         self.pen_color[1], self.pen_color[2],
@@ -593,7 +597,8 @@ function Core.new(renderer)
                     self.pen_color[1], self.pen_color[2],
                     self.pen_color[3], self.pen_color[4],
                 }
-                table.insert(self.dots, {
+                emit({
+                    type  = "dot",
                     x     = self.x,
                     y     = self.y,
                     size  = next_action.size or 2 * self.pen_size,
@@ -601,16 +606,11 @@ function Core.new(renderer)
                 })
 
             elseif next_action.type == "clear" then
-                self.segments = {}
-                self.fills = {}
-                self.texts = {}
-                self.dots = {}
+                emit({type = "clear"})
+                canvas.active_from = #canvas.draw_log
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.current = nil
-                if self.renderer then
-                    self.renderer:commit_clear()
-                end
 
             elseif next_action.type == "reset" then
                 self.x = 0
@@ -619,21 +619,14 @@ function Core.new(renderer)
                 self.pen_down = true
                 self.pen_color = {1, 1, 1, 1}
                 self.pen_size = 2
-                self.bg_color = {0.07, 0.07, 0.07, 1}
                 self.speed_setting = 5
-                self.segments = {}
-                self.fills = {}
-                self.texts = {}
-                self.dots = {}
                 self.fill_active = false
                 self.fill_vertices = {}
                 self.fill_color = nil
                 self.visible = true
                 self.current = nil
-                if self.renderer then
-                    self.renderer:commit_clear()
-                    self.renderer:set_bgcolor(self.bg_color)
-                end
+                canvas.active_from = #canvas.draw_log
+                canvas.bg_color = {0.07, 0.07, 0.07, 1}
 
             elseif next_action.type == "move" then
                 next_action.remaining = next_action.distance
@@ -720,7 +713,8 @@ function Core.new(renderer)
             if math.abs(a.remaining) < 1e-6 then
                 -- Action complete: commit segment if pen was down.
                 if self.pen_down then
-                    local segment = {
+                    emit({
+                        type  = "segment",
                         from  = {x = a.start_x, y = a.start_y},
                         to    = {x = self.x,     y = self.y},
                         color = {
@@ -728,11 +722,7 @@ function Core.new(renderer)
                             self.pen_color[3], self.pen_color[4],
                         },
                         width = self.pen_size,
-                    }
-                    table.insert(self.segments, segment)
-                    if self.renderer then
-                        self.renderer:commit_segment(segment)
-                    end
+                    })
                 end
                 -- Record vertex for any active fill region.
                 if self.fill_active then
@@ -767,6 +757,10 @@ function Core.new(renderer)
     -- Array-style tables arrive as 0-indexed JS arrays.
     -- Named tables arrive as plain JS objects.
     -- These are not part of the user-facing API.
+    --
+    -- All counts and indexed lookups operate on the active portion of
+    -- canvas.draw_log: entries at indices (active_from+1 .. #draw_log),
+    -- filtered by event type.
     ----------------------------------------------------------------
 
     function self.get_turtle_state()
@@ -785,60 +779,108 @@ function Core.new(renderer)
     end
 
     function self.get_bg_color()
-        return { self.bg_color[1], self.bg_color[2],
-                 self.bg_color[3], self.bg_color[4] }
+        return { canvas.bg_color[1], canvas.bg_color[2],
+                 canvas.bg_color[3], canvas.bg_color[4] }
     end
 
-    -- Returns: total number of committed segments
+    -- Returns: total number of segment events in the active portion of draw_log
     function self.get_segment_count()
-        return #self.segments
+        local n = 0
+        for i = canvas.active_from + 1, #canvas.draw_log do
+            if canvas.draw_log[i].type == "segment" then n = n + 1 end
+        end
+        return n
     end
 
-    -- Returns one segment by 1-based index as a flat array:
-    -- {from_x, from_y, to_x, to_y, r, g, b, a, width}
+    -- Returns one segment by 1-based index (among segment events in active portion)
+    -- as a flat array: {from_x, from_y, to_x, to_y, r, g, b, a, width}
     -- Returns nil if index is out of range.
     function self.get_segment(i)
-        local s = self.segments[i]
-        if not s then return nil end
-        return { s.from.x, s.from.y, s.to.x, s.to.y,
-                 s.color[1], s.color[2], s.color[3], s.color[4],
-                 s.width }
+        local n = 0
+        for j = canvas.active_from + 1, #canvas.draw_log do
+            local e = canvas.draw_log[j]
+            if e.type == "segment" then
+                n = n + 1
+                if n == i then
+                    return { e.from.x, e.from.y, e.to.x, e.to.y,
+                             e.color[1], e.color[2], e.color[3], e.color[4],
+                             e.width }
+                end
+            end
+        end
+        return nil
     end
 
-    -- Returns: total number of committed fills
+    -- Returns: total number of fill events in the active portion of draw_log
     function self.get_fill_count()
-        return #self.fills
+        local n = 0
+        for i = canvas.active_from + 1, #canvas.draw_log do
+            if canvas.draw_log[i].type == "fill" then n = n + 1 end
+        end
+        return n
     end
 
-    -- Returns one fill by 1-based index as a named table:
-    -- { vertices = {{x,y}, ...}, color = {r,g,b,a} }
+    -- Returns one fill by 1-based index (among fill events in active portion)
+    -- as a named table: { vertices = {{x,y}, ...}, color = {r,g,b,a} }
     -- Returns nil if index is out of range.
     function self.get_fill(i)
-        return self.fills[i]
+        local n = 0
+        for j = canvas.active_from + 1, #canvas.draw_log do
+            local e = canvas.draw_log[j]
+            if e.type == "fill" then
+                n = n + 1
+                if n == i then return e end
+            end
+        end
+        return nil
     end
 
-    -- Returns: total number of committed texts
+    -- Returns: total number of text events in the active portion of draw_log
     function self.get_text_count()
-        return #self.texts
+        local n = 0
+        for i = canvas.active_from + 1, #canvas.draw_log do
+            if canvas.draw_log[i].type == "text" then n = n + 1 end
+        end
+        return n
     end
 
-    -- Returns one text by 1-based index as a named table:
-    -- { x, y, text, font, size, align, color = {r,g,b,a} }
+    -- Returns one text by 1-based index (among text events in active portion)
+    -- as a named table: { x, y, text, font, size, align, color = {r,g,b,a} }
     -- Returns nil if index is out of range.
     function self.get_text(i)
-        return self.texts[i]
+        local n = 0
+        for j = canvas.active_from + 1, #canvas.draw_log do
+            local e = canvas.draw_log[j]
+            if e.type == "text" then
+                n = n + 1
+                if n == i then return e end
+            end
+        end
+        return nil
     end
 
-    -- Returns: total number of committed dots
+    -- Returns: total number of dot events in the active portion of draw_log
     function self.get_dot_count()
-        return #self.dots
+        local n = 0
+        for i = canvas.active_from + 1, #canvas.draw_log do
+            if canvas.draw_log[i].type == "dot" then n = n + 1 end
+        end
+        return n
     end
 
-    -- Returns one dot by 1-based index as a named table:
-    -- { x, y, size, color = {r,g,b,a} }
+    -- Returns one dot by 1-based index (among dot events in active portion)
+    -- as a named table: { x, y, size, color = {r,g,b,a} }
     -- Returns nil if index is out of range.
     function self.get_dot(i)
-        return self.dots[i]
+        local n = 0
+        for j = canvas.active_from + 1, #canvas.draw_log do
+            local e = canvas.draw_log[j]
+            if e.type == "dot" then
+                n = n + 1
+                if n == i then return e end
+            end
+        end
+        return nil
     end
 
     -- Returns preview line as a flat array, same shape as a segment.
@@ -872,6 +914,29 @@ function Core.new(renderer)
     end
 
     return self
+end
+
+function Core.new()
+    local canvas = {
+        draw_log    = {},
+        bg_color    = {0.07, 0.07, 0.07, 1},
+        active_from = 0,
+        turtles     = {},   -- id -> turtle; all live turtles
+        _next_id    = 1,
+    }
+
+    -- create_turtle: make a new turtle, register it, and return it.
+    function canvas.create_turtle()
+        local id = canvas._next_id
+        canvas._next_id = canvas._next_id + 1
+        local t = make_turtle(canvas, id)
+        canvas.turtles[id] = t
+        return t
+    end
+
+    local t = canvas.create_turtle()
+    canvas.turtle = t   -- convenience alias for turtle 1
+    return canvas
 end
 
 return Core

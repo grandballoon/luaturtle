@@ -4,21 +4,22 @@ local h    = require("test_helpers")
 
 -- undo reverses a forward move (position and segment)
 local function test_undo_forward()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.undo()
     h.drain(t)
     assert(math.abs(t.x) < 1e-6, "x should be 0, got " .. t.x)
     assert(math.abs(t.y) < 1e-6, "y should be 0, got " .. t.y)
-    assert(#t.segments == 0, "segments should be empty after undo")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 0, "segments should be empty after undo")
     print("PASS test_undo_forward")
 end
 
 -- undo reverses a pencolor change
 local function test_undo_pencolor()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.pencolor(1, 0, 0, 1)
     t.undo()
     h.drain(t)
@@ -30,8 +31,8 @@ end
 
 -- multiple undos in sequence
 local function test_undo_multiple()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.left(90)
     t.forward(50)
@@ -42,14 +43,15 @@ local function test_undo_multiple()
     assert(math.abs(t.x) < 1e-6, "x should be 0 after 3 undos, got " .. t.x)
     assert(math.abs(t.y) < 1e-6, "y should be 0 after 3 undos, got " .. t.y)
     h.assert_near(t.angle, 0, 1e-4, "angle should be 0 after 3 undos")
-    assert(#t.segments == 0, "segments should be empty")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 0, "segments should be empty")
     print("PASS test_undo_multiple")
 end
 
 -- undo on empty stack does nothing (no crash)
 local function test_undo_empty_stack()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.undo()
     h.drain(t)
     -- just verifying no error thrown
@@ -58,8 +60,8 @@ end
 
 -- undo of penup restores pen_down = true
 local function test_undo_penup()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.penup()
     t.undo()
     h.drain(t)
@@ -69,20 +71,21 @@ end
 
 -- undo of clear restores segments
 local function test_undo_clear()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.clear()
     t.undo()
     h.drain(t)
-    assert(#t.segments == 1, "segments should be restored after undoing clear, got " .. #t.segments)
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 1, "segments should be restored after undoing clear, got " .. #segs)
     print("PASS test_undo_clear")
 end
 
 -- undo of a fill: restores fill_active and removes committed fill
 local function test_undo_end_fill()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.begin_fill()
     t.forward(100)
     t.left(90)
@@ -90,15 +93,16 @@ local function test_undo_end_fill()
     t.end_fill()
     t.undo()  -- undo end_fill
     h.drain(t)
-    assert(#t.fills == 0, "fills should be empty after undoing end_fill")
+    local fills = h.active_events(canvas, "fill")
+    assert(#fills == 0, "fills should be empty after undoing end_fill")
     assert(t.fill_active == true, "fill should be active after undoing end_fill")
     print("PASS test_undo_end_fill")
 end
 
 -- undo of setheading counts as one command (not two dissolved primitives)
 local function test_undo_setheading_is_one_command()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setheading(90)
     t.undo()
     h.drain(t)
@@ -109,36 +113,37 @@ end
 
 -- undo of arc counts as one command
 local function test_undo_arc_is_one_command()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.arc(100, 90)
     t.undo()
     h.drain(t)
     h.assert_near(t.x, 0, 1e-4, "x should be 0 after undoing arc")
     h.assert_near(t.y, 0, 1e-4, "y should be 0 after undoing arc")
     h.assert_near(t.angle, 0, 1e-4, "angle should be 0 after undoing arc")
-    assert(#t.segments == 0, "segments should be empty after undoing arc")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 0, "segments should be empty after undoing arc")
     print("PASS test_undo_arc_is_one_command")
 end
 
 -- undo of bgcolor restores previous color
 local function test_undo_bgcolor()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
-    local orig = {t.bg_color[1], t.bg_color[2], t.bg_color[3], t.bg_color[4]}
+    local canvas = Core.new()
+    local t = canvas.turtle
+    local orig = {canvas.bg_color[1], canvas.bg_color[2], canvas.bg_color[3], canvas.bg_color[4]}
     t.bgcolor(0, 0, 1, 1)
     t.undo()
     h.drain(t)
-    h.assert_near(t.bg_color[1], orig[1], 1e-4, "bg r restored")
-    h.assert_near(t.bg_color[2], orig[2], 1e-4, "bg g restored")
-    h.assert_near(t.bg_color[3], orig[3], 1e-4, "bg b restored")
+    h.assert_near(canvas.bg_color[1], orig[1], 1e-4, "bg r restored")
+    h.assert_near(canvas.bg_color[2], orig[2], 1e-4, "bg g restored")
+    h.assert_near(canvas.bg_color[3], orig[3], 1e-4, "bg b restored")
     print("PASS test_undo_bgcolor")
 end
 
 -- undo of hideturtle restores visibility
 local function test_undo_hideturtle()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     t.undo()
     h.drain(t)
@@ -158,32 +163,34 @@ test_undo_arc_is_one_command()
 test_undo_bgcolor()
 test_undo_hideturtle()
 
--- undo of dot removes it from the dots log
+-- undo of dot removes it from the draw_log
 local function test_undo_dot()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.dot(10, "red")
     t.undo()
     h.drain(t)
-    assert(#t.dots == 0, "dots should be empty after undoing dot, got " .. #t.dots)
+    local dots = h.active_events(canvas, "dot")
+    assert(#dots == 0, "dots should be empty after undoing dot, got " .. #dots)
     print("PASS test_undo_dot")
 end
 
--- undo of text removes it from the texts log
+-- undo of text removes it from the draw_log
 local function test_undo_text()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.text("hello")
     t.undo()
     h.drain(t)
-    assert(#t.texts == 0, "texts should be empty after undoing text, got " .. #t.texts)
+    local texts = h.active_events(canvas, "text")
+    assert(#texts == 0, "texts should be empty after undoing text, got " .. #texts)
     print("PASS test_undo_text")
 end
 
 -- undo of teleport restores position
 local function test_undo_teleport()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.teleport(100, 200)
     t.undo()
     h.drain(t)
@@ -194,8 +201,8 @@ end
 
 -- undo of setx counts as one command and restores x
 local function test_undo_setx()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setx(150)
     t.undo()
     h.drain(t)
@@ -207,8 +214,8 @@ end
 
 -- undo of sety counts as one command and restores y
 local function test_undo_sety()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.sety(75)
     t.undo()
     h.drain(t)
@@ -220,8 +227,8 @@ end
 
 -- undo of color() restores both pen and fill colors
 local function test_undo_color()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setfillcolor(0, 1, 0, 1)  -- green fill
     t.color("red")               -- sets both pen and fill to red
     t.undo()                     -- undoes color(), not setfillcolor()
@@ -237,8 +244,8 @@ end
 
 -- undo of setfillcolor restores fill_color to previous value (nil by default)
 local function test_undo_setfillcolor()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setfillcolor(1, 0, 0, 1)
     t.undo()
     h.drain(t)
@@ -248,8 +255,8 @@ end
 
 -- undo of pendown restores pen_down to false
 local function test_undo_pendown()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.penup()
     t.pendown()
     t.undo()
@@ -260,8 +267,8 @@ end
 
 -- undo of pensize restores pen_size
 local function test_undo_pensize()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     local orig = t.pen_size
     t.pensize(10)
     t.undo()
@@ -272,8 +279,8 @@ end
 
 -- undo of speed() restores speed_setting
 local function test_undo_speed()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     local orig = t.speed_setting
     t.speed(10)
     t.undo()
@@ -284,8 +291,8 @@ end
 
 -- undo of showturtle restores visible to false
 local function test_undo_showturtle()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.hideturtle()
     t.showturtle()
     t.undo()
@@ -296,8 +303,8 @@ end
 
 -- undo of begin_fill restores fill_active to false
 local function test_undo_begin_fill()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.begin_fill()
     t.undo()
     h.drain(t)
@@ -307,8 +314,8 @@ end
 
 -- undo of setpos counts as one command
 local function test_undo_setpos_is_one_command()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.setpos(100, 100)
     t.undo()
     h.drain(t)
@@ -320,8 +327,8 @@ end
 
 -- undo of home counts as one command, restores pre-home position and heading
 local function test_undo_home_is_one_command()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.left(45)
     t.home()
@@ -335,8 +342,8 @@ end
 
 -- undo of reset restores position, pen, and segments
 local function test_undo_reset()
-    local r = h.make_test_renderer()
-    local t = Core.new(r)
+    local canvas = Core.new()
+    local t = canvas.turtle
     t.forward(100)
     t.pencolor("red")
     t.reset()
@@ -345,7 +352,8 @@ local function test_undo_reset()
     h.assert_near(t.x, 100, 1e-4, "x should be restored after undoing reset")
     h.assert_near(t.pen_color[1], 1, 1e-4, "pen r should be red after undoing reset")
     h.assert_near(t.pen_color[2], 0, 1e-4, "pen g should be 0 (red) after undoing reset")
-    assert(#t.segments == 1, "segments should be restored after undoing reset")
+    local segs = h.active_events(canvas, "segment")
+    assert(#segs == 1, "segments should be restored after undoing reset")
     print("PASS test_undo_reset")
 end
 
