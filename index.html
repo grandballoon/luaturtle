@@ -1573,17 +1573,17 @@ button {
     setStatus('Stopped');
   });
 
-  document.getElementById('btn-share').addEventListener('click', () => {
-    const code = editor.getValue();
-    location.hash = encodeURIComponent(code);
-    navigator.clipboard.writeText(location.href).then(() => {
-      setStatus('Link copied!');
-      setTimeout(() => setStatus(''), 2000);
-    }).catch(() => {
-      setStatus('Link ready — copy from address bar');
-      setTimeout(() => setStatus(''), 3000);
-    });
-  });
+  // document.getElementById('btn-share').addEventListener('click', () => {
+  //   const code = editor.getValue();
+  //   location.hash = encodeURIComponent(code);
+  //   navigator.clipboard.writeText(location.href).then(() => {
+  //     setStatus('Link copied!');
+  //     setTimeout(() => setStatus(''), 2000);
+  //   }).catch(() => {
+  //     setStatus('Link ready — copy from address bar');
+  //     setTimeout(() => setStatus(''), 3000);
+  //   });
+  // });
 
   editor.setOption('extraKeys', {
     'Ctrl-Enter': () => document.getElementById('btn-run').click(),
