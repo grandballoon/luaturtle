@@ -913,6 +913,16 @@ local function make_turtle(canvas, id)
         self.current = nil
     end
 
+    -- Shorthand aliases — every turtle carries these so Turtle() objects
+    -- have the same API as the default turtle exposed through the sandbox.
+    self.fd   = self.forward
+    self.bk   = self.back
+    self.lt   = self.left
+    self.rt   = self.right
+    self.pu   = self.penup
+    self.pd   = self.pendown
+    self.seth = self.setheading
+
     return self
 end
 
