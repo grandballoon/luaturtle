@@ -565,7 +565,7 @@ button {
           <tr><td>dot(size)</td><td>Draw a filled circle at turtle's position</td></tr>
           <tr><td>dot(size, "red")</td><td>Draw a dot with a specific color</td></tr>
         </table>
-               <h2>Text</h2>
+        <h2>Text</h2>
         <table>
           <tr><td>text("hello")</td><td>Write text at turtle's position</td></tr>
           <tr><td>text("hello", font, size)</td><td>Custom font and size: text("hi", "monospace", 24)</td></tr>
@@ -574,10 +574,17 @@ button {
         <h2>Canvas</h2>
         <table>
           <tr><td>bgcolor(r, g, b)</td><td>Set background color</td></tr>
+          <tr><td>bgcolor("name")</td><td>Set background color by name: "black", "navy", etc.</td></tr>
           <tr><td>clear()</td><td>Erase drawing, keep turtle position</td></tr>
           <tr><td>reset()</td><td>Erase drawing and reset turtle to start</td></tr>
           <tr><td>undo()</td><td>Undo the last command</td></tr>
           <tr><td>speed(n)</td><td>0–10, or "slow", "medium", "fast", "faster", "fastest" (0), "instant" (no animation)</td></tr>
+        </table>
+        <h2>Turtle</h2>
+        <table>
+          <tr><td>hideturtle()</td><td>Hide the turtle</td></tr>
+          <tr><td>showturtle()</td><td>Show the turtle</td></tr>
+          <tr><td>Turtle()</td><td>Create a second turtle; returns an object with all the same methods</td></tr>
         </table>
         <h2>State Queries</h2>
         <table>
@@ -588,8 +595,6 @@ button {
           <tr><td>isdown()</td><td>Returns true if pen is down</td></tr>
           <tr><td>filling()</td><td>Returns true if currently filling</td></tr>
           <tr><td>isvisible()</td><td>Returns true if turtle is visible</td></tr>
-          <tr><td>hideturtle()</td><td>Hide the turtle</td></tr>
-          <tr><td>showturtle()</td><td>Show the turtle</td></tr>
           <tr><td>distance(x, y)</td><td>Returns distance to point</td></tr>
           <tr><td>towards(x, y)</td><td>Returns angle towards point</td></tr>
         </table>

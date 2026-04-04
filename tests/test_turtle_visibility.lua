@@ -32,16 +32,15 @@ local function test_showturtle()
     print("PASS test_showturtle")
 end
 
--- hideturtle/showturtle are queued: they fire in order relative to moves.
-local function test_hideturtle_is_queued()
+local function test_isvisible_drains_queue()
+    -- isvisible() drains the queue so it reflects queued hide/show.
     local canvas = Core.new()
     local t = canvas.turtle
     t.hideturtle()
-    -- visible should still be true before the queue drains
-    assert(t.isvisible() == true, "visible should be true before queue drains")
-    h.drain(t)
-    assert(t.isvisible() == false, "visible should be false after queue drains")
-    print("PASS test_hideturtle_is_queued")
+    assert(t.isvisible() == false, "isvisible() should reflect queued hideturtle")
+    t.showturtle()
+    assert(t.isvisible() == true, "isvisible() should reflect queued showturtle")
+    print("PASS test_isvisible_drains_queue")
 end
 
 local function test_visibility_does_not_affect_drawing()
@@ -69,7 +68,7 @@ end
 test_visible_by_default()
 test_hideturtle()
 test_showturtle()
-test_hideturtle_is_queued()
+test_isvisible_drains_queue()
 test_visibility_does_not_affect_drawing()
 test_reset_restores_visibility()
 
