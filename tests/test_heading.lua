@@ -79,16 +79,14 @@ local function test_left_right_cancel()
     print("PASS test_left_right_cancel")
 end
 
-local function test_heading_query_is_immediate()
-    -- heading() reflects committed state only, not queued turns.
+local function test_heading_query_drains_queue()
+    -- heading() drains the queue so it reflects queued turns.
     local canvas = Core.new()
     local t = canvas.turtle
     t.left(90)
-    -- queue not drained yet
-    h.assert_near(t.heading(), 0, 1e-4, "heading before drain should be 0")
-    h.drain(t)
-    h.assert_near(t.heading(), 90, 1e-4, "heading after drain should be 90")
-    print("PASS test_heading_query_is_immediate")
+    -- heading() should drain and return the post-turn value
+    h.assert_near(t.heading(), 90, 1e-4, "heading() should reflect queued turn")
+    print("PASS test_heading_query_drains_queue")
 end
 
 -- Run all tests
@@ -100,6 +98,6 @@ test_setheading_absolute()
 test_setheading_from_nonzero()
 test_setheading_takes_shortest_turn()
 test_left_right_cancel()
-test_heading_query_is_immediate()
+test_heading_query_drains_queue()
 
 print("All heading tests passed.")

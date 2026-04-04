@@ -107,29 +107,24 @@ local function test_bgcolor_emits_event()
     print("PASS test_bgcolor_emits_event")
 end
 
-local function test_position_query_is_immediate()
+local function test_position_query_drains_queue()
     local canvas = Core.new()
     local t = canvas.turtle
     t.forward(100)
-    -- queue not drained yet
+    -- position() drains the queue; should reflect the queued move
     local x, y = t.position()
-    h.assert_near(x, 0, 1e-4, "x before drain should be 0")
-    h.assert_near(y, 0, 1e-4, "y before drain should be 0")
-    h.drain(t)
-    x, y = t.position()
-    h.assert_near(x, 100, 1e-4, "x after drain should be 100")
-    print("PASS test_position_query_is_immediate")
+    h.assert_near(x, 100, 1e-4, "position() should reflect queued forward")
+    h.assert_near(y, 0, 1e-4, "y should be unchanged")
+    print("PASS test_position_query_drains_queue")
 end
 
-local function test_isdown_query_is_immediate()
+local function test_isdown_query_drains_queue()
     local canvas = Core.new()
     local t = canvas.turtle
     t.penup()
-    -- queue not drained yet
-    assert(t.isdown() == true, "isdown should be true before drain")
-    h.drain(t)
-    assert(t.isdown() == false, "isdown should be false after drain")
-    print("PASS test_isdown_query_is_immediate")
+    -- isdown() drains the queue; should reflect the queued penup
+    assert(t.isdown() == false, "isdown() should reflect queued penup")
+    print("PASS test_isdown_query_drains_queue")
 end
 
 local function test_speed_named_constants()
@@ -196,8 +191,8 @@ test_reset_restores_speed()
 test_speed_zero_completes_instantly()
 test_speed_animated_does_not_complete_instantly()
 test_bgcolor_emits_event()
-test_position_query_is_immediate()
-test_isdown_query_is_immediate()
+test_position_query_drains_queue()
+test_isdown_query_drains_queue()
 test_speed_named_constants()
 test_instant_drains_in_one_update()
 test_speed_unknown_name_errors()

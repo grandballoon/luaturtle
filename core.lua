@@ -439,18 +439,22 @@ local function make_turtle(canvas, id)
     ----------------------------------------------------------------
 
     function self.position()
+        drain_queue()
         return self.x, self.y
     end
 
     function self.heading()
+        drain_queue()
         return self.angle
     end
 
     function self.isdown()
+        drain_queue()
         return self.pen_down
     end
 
     function self.isvisible()
+        drain_queue()
         return self.visible
     end
 
